@@ -84,6 +84,7 @@ CREATE TABLE tickets (
   status       TEXT NOT NULL,            -- 'open' | 'in_progress' | 'blocked' | 'done' | 'deferred'
   priority     TEXT,                     -- 'P0' | 'P1' | 'P2' | 'P3' | NULL
   type         TEXT NOT NULL DEFAULT 'task', -- 'task' | 'bug' | 'spike' | 'followup' | 'umbrella'
+  effort       INTEGER CHECK (effort IS NULL OR effort IN (1, 2, 3, 5, 8, 13)), -- Fibonacci story points
   epic         TEXT,                     -- free-text grouping
   parent_id    TEXT,                     -- for umbrella/child hierarchy (sscloud T103 -> T112-T119)
   created_by   TEXT,
@@ -152,6 +153,7 @@ CREATE INDEX idx_audit_ticket     ON audit_log (project_id, ticket_id);
 - **Composite primary key `(project_id, id)`** so `T1` can exist in multiple projects without collision.
 - **Status is single source of truth.** No separate "shipped_at" column; `closed_at` covers it. The sscloud "Done / In progress / Open" table is `SELECT ... GROUP BY status`.
 - **`type` is required and defaults to `task`.** Five values keep the discriminator small. `umbrella` is the special case for parent rows in T103→T112-T119 style hierarchies.
+- **`effort` is Fibonacci story points (1, 2, 3, 5, 8, 13), nullable.** The `CHECK` constraint forces the canonical scale — no 4s, no 7s, no false precision. NULL means "not sized yet". Assignment guide lives in §15. Chosen over t-shirt sizes because the numeric scale sums into `tickets.stats` and the gaps map to Claude's actual estimation uncertainty.
 - **`parent_id` is hierarchical**, distinct from typed relations. A child ticket has exactly one parent; relations are many-to-many. This matches the storybloq umbrella concept.
 - **All relations are directional** with no symmetric special-case. `tickets.related` returns both incoming and outgoing edges labelled, so callers never have to guess direction.
 - **`tickets_vec` is intentionally reserved** as a name for a future embedding sidecar table. Schema is forward-compatible without rewrites.
@@ -165,7 +167,7 @@ Auto-scoped to current project from cwd; pass `project: "<id>"` to override, `pr
 
 | Tool | Returns | Typical token cost |
 |---|---|---|
-| `tickets.list` | summary rows (id, title, status, priority, type, epic, parent_id) — *no descriptions* | 200-1500 |
+| `tickets.list` | summary rows (id, title, status, priority, type, effort, epic, parent_id) — *no descriptions* | 200-1500 |
 | `tickets.get` | one or more full tickets with relations and last N audit entries | 500-5000 per ticket |
 | `tickets.search` | up to N (default 10) FTS5-ranked hits with 240-char snippets | 200-1000 |
 | `tickets.next` | the highest-priority unblocked open ticket (with reason) | 100-300 |
@@ -173,7 +175,7 @@ Auto-scoped to current project from cwd; pass `project: "<id>"` to override, `pr
 | `tickets.blockers_of` | dependency tree rooted at a ticket; convenience over `tickets.related` with kind=blocks | 100-1000 |
 | `tickets.children_of` | direct children + grandchildren of an umbrella, by `parent_id` | 100-1500 |
 | `tickets.changed_since` | audit-log slice for "what changed today/this week", with optional field/new_value filters | 100-1000 |
-| `tickets.stats` | counts grouped by status/priority/epic/type for the active project | <100 |
+| `tickets.stats` | counts grouped by status/priority/epic/type, plus point totals grouped by effort and by epic, for the active project | <150 |
 | `tickets.validate` | referential integrity report: orphan parent_ids, dangling relations, status invariants | 50-500 |
 
 ### Default filters and budgets
@@ -320,7 +322,7 @@ These are first-class success criteria, not aspirations.
 |---|---|---|
 | `tickets.list` default (open work) | <1500 tokens | Summary rows only |
 | `tickets.search` default | <1000 tokens | 10 hits × 240-char snippet + meta |
-| `tickets.stats` | <100 tokens | Just counts |
+| `tickets.stats` | <150 tokens | Counts + point totals |
 | `tickets.get` single ticket | <2000 tokens typical, <5000 hard cap | Full description varies wildly |
 | `tickets.next` | <300 tokens | Single ticket summary + reason |
 | `tickets.changed_since` (24h) | <1000 tokens | Compact audit slice |
@@ -378,6 +380,59 @@ Wins borrowed from storybloq: the `type` field, `parent_id` umbrella hierarchy, 
 8. Migration: wesabe parser. Same loop.
 9. Plugin manifest + install path.
 10. README + minimal usage docs.
+
+## 15. Effort sizing guide (operational, for Claude)
+
+Ed will not assign effort values. Claude will. This section is the reference rubric Claude consults when calling `tickets.add` or `tickets.update` with an `effort` value. It is operational documentation, not aspirational.
+
+### The scale
+
+| Points | Meaning | Anchors |
+|---|---|---|
+| **1** | Trivial, mechanical. ~15 min of focused work. | Rename a field. Update a doc string. Fix a typo'd condition. Add a flag default. One-line bugfix with obvious cause. |
+| **2** | Small, isolated. One module. ~30-60 min. | Add an optional parameter to an existing tool. Write a small parser helper. Fix a bug that needs one new test. |
+| **3** | Normal day's work. The default for "I know what to do, it's just work." A few files, a handful of tests. | Add a new MCP read tool with tests. Focused refactor across 3-5 files. Add a non-trivial validation rule. |
+| **5** | Meaty. 2-3 modules, multiple test cases, some design judgement required. Half a day or so. | Implement `tickets.import_json` end-to-end. Add a new schema migration with backfill. Build the FTS5 trigger set. |
+| **8** | Big. Substantial integration, multiple non-obvious decisions, likely a full day of focused work. | Build a project parser (sscloud or wesabe). Wire up audit logging across all writes. Stand up the migrations runner from scratch. |
+| **13** | Should probably be split. Reserved escape valve. | "Build the MCP server." "Migrate everything." If you're tempted to use 13, decompose first. |
+
+### Rules of application
+
+1. **Anchor against done work, not unstarted work.** "Compared to a ticket already marked 3, is this more or less?" beats "how long will this take?" — Claude is bad at wall-clock estimates and good at relative comparisons.
+2. **NULL beats wrong.** If scope is unclear (spike-y, exploratory, unbounded), leave `effort` unset. The audit log will record when it's filled in later.
+3. **Effort is about the work, not the wait.** A blocked ticket doesn't get bigger because it's blocked. Don't inflate for risk; that's what `priority` and the `blocks` relation are for.
+4. **Re-estimate on material scope change.** If a ticket's description grows substantially or its acceptance criteria shift, update the effort. The audit log captures the delta automatically.
+5. **Bug effort = the fix, not the diagnosis.** Spike-then-fix is two tickets: the spike is a `spike` type at the effort it deserves (often 2-3), the fix is a separate ticket sized when scope is known.
+6. **Umbrella tickets are NULL.** Effort lives on the children. An umbrella with effort would double-count when summed.
+7. **13 requires a reason.** If you assign 13, leave a one-line note in the description explaining why it can't be split today. Treat unexplained 13s as a bug to fix on next visit.
+
+### Calibration sanity checks
+
+When running `tickets.stats`, watch for these signals that the rubric is drifting:
+
+- **Most tickets are 3s.** 3 is the default, not the answer. If >60% of open tickets are 3, push harder to differentiate.
+- **An epic sums to >40 points.** Probably scoped too wide. Suggest splitting.
+- **A single project's open-work total feels off** (e.g. sscloud at 200+ points). Either backlog has accumulated and needs triage, or values have crept upward over time. Spot-check a handful of old vs new tickets.
+- **No 1s or 2s anywhere.** Either Claude is over-estimating small work or those tickets aren't getting captured (closed too fast to write down).
+
+### Worked examples (using ticketgraph's own implementation order from §14)
+
+These are the values Claude should assign to ticketgraph's own implementation tickets, calibrated against the rubric above:
+
+| §14 step | Rough effort |
+|---|---|
+| 1. Scaffold TS project + MCP skeleton + better-sqlite3 wiring | 5 |
+| 2. Migrations runner + `001_init.sql` | 3 |
+| 3. Core read tools (`register_project`, `add`, `list`, `get`, `stats`) | 8 (or split: register=2, add=2, list=3, get=3, stats=3) |
+| 4. Search: FTS triggers + `search` tool | 5 |
+| 5. Writes (`update`, `append`, `link`/`unlink`, `set_parent`, tags) + audit | 8 |
+| 6. Convenience tools (`next`, `related`, `blockers_of`, `children_of`, `changed_since`, `validate`) | 8 (likely split) |
+| 7. sscloud import (parser + dry-run + live) | 8 |
+| 8. wesabe import (parser, reusing import_json) | 5 |
+| 9. Plugin manifest + install path | 2 |
+| 10. README + minimal usage docs | 2 |
+
+If when actually doing the work these turn out wildly off, update the rubric — the goal is calibrated future estimates, not preserving the initial guess.
 
 ---
 
