@@ -1,6 +1,6 @@
 # ticketgraph — Development Tickets
 
-Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven-development` → `/review-implementation`. TDD throughout.
+Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven-development` → `/review-implementation`. TDD throughout — testing contract is **§16 of the design spec** (three layers, version-controlled fixtures, every Acceptance bullet maps to a named test).
 
 **Priority levels:** P0 must ship before anything else; P1 is v1 MVP; P2 is v1 polish; P3 is v1.1+.
 **Read first:** `docs/specs/2026-05-28-ticketgraph-design.md`.
@@ -9,7 +9,15 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 
 | Done ✅ | In progress | Open |
 |---|---|---|
-| _(none yet)_ | _(none)_ | T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12 |
+| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14 | _(none)_ | T15 |
+
+**All tickets complete (2026-05-29).** 410 tests across 42 files, deterministically green (verified 12/12 consecutive full-suite runs). 21 MCP tools, sscloud + wesabe parsers (both 100% heading parse on the live files), plugin manifest + install docs, README + usage + migration docs, and GitHub Actions CI (ubuntu + macOS).
+
+**T14 (user-requested):** roots-based project resolution — a global server's `process.cwd()` is its spawn dir, not the user's active project, so cwd auto-scoping now resolves from MCP client roots (with cwd fallback).
+
+**MVP milestone (earlier 2026-05-29):** add / read / mark-completed loop via `tickets.add`, `tickets.list` / `tickets.get` / `tickets.stats`, `tickets.update { patch: { status: "done" } }`.
+
+Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent-driven-development → two-stage review → review-implementation); plans + as-built review records live in `.ai/implementation-plans/2026-05-29-T*.md`.
 
 ---
 
@@ -178,11 +186,54 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 - README answers: what is it, why is it different from storybloq, how do I install it, three example queries.
 - A non-Ed reader could follow the README to a working install.
 
+### T13 — CI via GitHub Actions
+**Blockers:** T1.
+**Scope:**
+- `.github/workflows/ci.yml` — triggers on `push` to any branch and on `pull_request`. Single workflow, single job-matrix.
+- Matrix: `{ node: '20.x', os: [ubuntu-latest, macos-latest] }`. macOS run is the §13 `better-sqlite3` native-build canary; do not drop it.
+- Steps: `actions/checkout@v4`, `actions/setup-node@v4` with `cache: 'npm'`, `npm ci`, `npm run build`, `npm test`.
+- Concurrency: `group: ci-${{ github.ref }}, cancel-in-progress: true` so force-pushes don't pile up.
+- No coverage upload, no artifact upload, no release jobs. Keep the workflow under 40 lines.
+- README install instructions get a CI badge once green.
+**Acceptance:**
+- A green run on `main` after this ticket lands; badge in README is green.
+- A deliberately-broken test (introduced on a throwaway branch) produces a red run, with the failing test name visible in the GitHub UI without expanding any log group.
+- macOS job completes in <2 minutes against the seeded fixture; if it doesn't, pin the `better-sqlite3` version (per §13 mitigation) before merging.
+- Workflow file passes `actionlint` locally.
+
 ---
 
-## P3 — Post-MVP polish (deferred)
+## v1.1 — Promoted from backlog
 
-- **Slash commands** (`/tickets-add`, `/tickets-status`) bundled with the plugin.
+### T15 — Slash commands bundled with the plugin
+**Status:** Open.
+**Blockers:** none (the MCP tool surface T5–T8 is complete; slash commands are thin wrappers over it).
+**Why:** the MCP tools are the canonical interface, but a few high-frequency actions are quicker as typed slash commands than as natural-language prompts. Bundling them with the plugin (they ship in `.claude-plugin/`, namespaced `/ticketgraph:<name>`) makes the common loop fast and discoverable.
+**Scope:**
+- Add a `commands/` (or `skills/`-style) directory referenced from `.claude-plugin/plugin.json` per the current Claude Code plugin slash-command convention (confirm the exact manifest field + file format against Claude Code docs before implementing — this is the main unknown).
+- Ship the high-value commands the spec named, plus the obvious complements:
+  - `/tickets-add <title>` → `tickets.add({ title })` (prompt for/accept optional priority, type, effort).
+  - `/tickets-status` → `tickets.stats({})` for the current project (the "what's the state of this project" glance).
+  - `/tickets-next` → `tickets.next({})` ("what should I work on?").
+  - `/tickets-open` → `tickets.list({})` (outstanding work, default status filter).
+  - `/tickets-done <id>` → `tickets.update({ id, patch: { status: "done" } })`.
+- Each command is a thin instruction that calls the existing MCP tool — NO new server logic. Project scoping flows through the existing roots-based resolution (T14); commands never hardcode a project.
+- Namespacing: commands surface as `/ticketgraph:tickets-add` etc. (plugin name prefix). Decide whether to keep the `tickets-` infix or rely on the namespace alone (`/ticketgraph:add`) — pick whichever reads better once the manifest format is confirmed.
+- Document the commands in `docs/usage.md` (the prompt→call table already exists; add a "slash commands" subsection) and the README tool/usage section.
+**Acceptance:**
+- After `/reload-plugins` (or reinstall), the commands appear in Claude Code's slash-command list under the `ticketgraph` namespace.
+- `/tickets-add "Test"` creates a ticket in the cwd-resolved project and reports the new id.
+- `/tickets-status` returns the project's stats in <150 tokens (it's just `tickets.stats`).
+- `/tickets-done <id>` flips the ticket to done (and `closed_at` is set via the existing trigger).
+- No new server code paths — verified by `git diff` touching only `.claude-plugin/`, `commands/` (or equiv), and docs.
+**Notes:**
+- Effort: **3** (a normal day — the unknown is the plugin slash-command manifest format, not the logic; the tools already exist).
+- Runs the four-stage dream-skills pipeline like every other ticket. The plan's first job is to pin down the current plugin slash-command file format (consult Claude Code docs / the `claude-code-guide`).
+
+---
+
+## P3 — Post-MVP polish (still deferred)
+
 - **`tickets.dump` enhancements** — pagination, JSON-streaming for large projects.
 - **Vector embedding sidecar** — opt-in `tickets_vec` table, local model via Ollama or hosted endpoint. Schema already reserves the name.
 - **Audit log retention** — `tickets.audit.purge_before` once row counts justify it (10k+).

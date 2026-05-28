@@ -1,0 +1,11 @@
+{
+  "name": "ticketgraph",
+  "description": "MCP server backing the ticketgraph plugin — token-efficient ticket queries over SQLite.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Ed Wilde"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/edwilde/ticketgraph",
+  "keywords": ["mcp", "tickets", "sqlite", "claude-code"]
+}
