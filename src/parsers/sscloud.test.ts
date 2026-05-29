@@ -461,3 +461,104 @@ describe("fixture 22: no-scope-acceptance", () => {
     expect(!desc || desc === "").toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Fixture 23: spike-type
+// ---------------------------------------------------------------------------
+describe("fixture 23: spike-type", () => {
+  it("T3 title starting with 'Spike:' gets type=spike", () => {
+    const result = parseSscloud(fixture("23-spike-type.md"));
+    const t3 = result.tickets.find((t) => t.id === "T3")!;
+    expect(t3).toBeDefined();
+    expect(t3.type).toBe("spike");
+  });
+
+  it("T4 (normal ticket) has no type field (defaults to task on import)", () => {
+    const result = parseSscloud(fixture("23-spike-type.md"));
+    const t4 = result.tickets.find((t) => t.id === "T4")!;
+    expect(t4).toBeDefined();
+    expect(t4.type).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fixture 16: follows_up relations from "follow-up tickets filed:"
+// ---------------------------------------------------------------------------
+describe("fixture 16: follows_up from 'follow-up tickets filed:'", () => {
+  it("T112 follows_up T103 (from Eight follow-up tickets filed listing)", () => {
+    const result = parseSscloud(fixture("16-umbrella-spawned.md"));
+    const rel = result.relations?.find(
+      (r) => r.from === "T112" && r.to === "T103" && r.kind === "follows_up",
+    );
+    expect(rel).toBeDefined();
+  });
+
+  it("T113 follows_up T103", () => {
+    const result = parseSscloud(fixture("16-umbrella-spawned.md"));
+    const rel = result.relations?.find(
+      (r) => r.from === "T113" && r.to === "T103" && r.kind === "follows_up",
+    );
+    expect(rel).toBeDefined();
+  });
+
+  it("T119 follows_up T103 (last in the list)", () => {
+    const result = parseSscloud(fixture("16-umbrella-spawned.md"));
+    const rel = result.relations?.find(
+      (r) => r.from === "T119" && r.to === "T103" && r.kind === "follows_up",
+    );
+    expect(rel).toBeDefined();
+  });
+
+  it("all 8 follow-up refs (T112-T119) emit follows_up to T103", () => {
+    const result = parseSscloud(fixture("16-umbrella-spawned.md"));
+    const rels = result.relations?.filter(
+      (r) => r.to === "T103" && r.kind === "follows_up",
+    ) ?? [];
+    const fromIds = rels.map((r) => r.from).sort();
+    expect(fromIds).toEqual(["T112", "T113", "T114", "T115", "T116", "T117", "T118", "T119"]);
+  });
+
+  it("no self-relation on T103", () => {
+    const result = parseSscloud(fixture("16-umbrella-spawned.md"));
+    const selfRel = result.relations?.find(
+      (r) => r.from === "T103" && r.to === "T103" && r.kind === "follows_up",
+    );
+    expect(selfRel).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fixture 20: follows_up relations from "Spawned … follow-ups"
+// ---------------------------------------------------------------------------
+describe("fixture 20: follows_up from 'Spawned … follow-ups'", () => {
+  it("T112 follows_up T103 (from Spawned T112-T115 follow-ups)", () => {
+    const result = parseSscloud(fixture("20-range-expansion.md"));
+    const rel = result.relations?.find(
+      (r) => r.from === "T112" && r.to === "T103" && r.kind === "follows_up",
+    );
+    expect(rel).toBeDefined();
+  });
+
+  it("T115 follows_up T103", () => {
+    const result = parseSscloud(fixture("20-range-expansion.md"));
+    const rel = result.relations?.find(
+      (r) => r.from === "T115" && r.to === "T103" && r.kind === "follows_up",
+    );
+    expect(rel).toBeDefined();
+  });
+
+  it("all 4 expanded refs (T112-T115) emit follows_up to T103", () => {
+    const result = parseSscloud(fixture("20-range-expansion.md"));
+    const rels = result.relations?.filter(
+      (r) => r.to === "T103" && r.kind === "follows_up",
+    ) ?? [];
+    const fromIds = rels.map((r) => r.from).sort();
+    expect(fromIds).toEqual(["T112", "T113", "T114", "T115"]);
+  });
+
+  it("no spurious follows_up on a ticket with no such phrasing (fixture 01)", () => {
+    const result = parseSscloud(fixture("01-done-with-commit.md"));
+    const rels = result.relations?.filter((r) => r.kind === "follows_up") ?? [];
+    expect(rels).toHaveLength(0);
+  });
+});

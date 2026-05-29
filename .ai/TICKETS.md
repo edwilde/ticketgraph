@@ -9,7 +9,7 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 
 | Done ✅ | In progress | Open |
 |---|---|---|
-| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14 | _(none)_ | T15, T16, T17 |
+| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T16, T17 | _(none)_ | T15 |
 
 **All tickets complete (2026-05-29).** 410 tests across 42 files, deterministically green (verified 12/12 consecutive full-suite runs). 21 MCP tools, sscloud + wesabe parsers (both 100% heading parse on the live files), plugin manifest + install docs, README + usage + migration docs, and GitHub Actions CI (ubuntu + macOS).
 

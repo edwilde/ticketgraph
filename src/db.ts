@@ -61,12 +61,43 @@ export function openDb(options: OpenDbOptions = {}): OpenDbResult {
         `DB at ${dbPath} is stale (user_version=${currentVersion}, ${pendingCount} pending migrations). Run in write mode to migrate.`,
       );
     }
+    if (!options._migrationsDir) {
+      assertSchemaIntact(db, dbPath);
+    }
     return { db, dbPath };
   }
 
   applyMigrations(db, migrationsDir);
+  // Only guard against version/schema mismatch when using the real migrations dir.
+  // A custom _migrationsDir is a test-only override with toy schemas that don't include 'projects'.
+  if (!options._migrationsDir) {
+    assertSchemaIntact(db, dbPath);
+  }
 
   return { db, dbPath };
+}
+
+/**
+ * Guard: if the DB reports user_version >= 1 but is missing the 'projects' table,
+ * close the handle and throw a clear, actionable error.
+ * A fresh version-0 DB legitimately has no tables before migration; this guard
+ * only fires when the version/schema are out of sync (half-init, interrupted migration, etc.).
+ */
+function assertSchemaIntact(db: Database.Database, dbPath: string): void {
+  const version = db.pragma("user_version", { simple: true }) as number;
+  if (version >= 1) {
+    const row = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'")
+      .get();
+    if (!row) {
+      db.close();
+      throw new Error(
+        `Database at ${dbPath} reports schema version ${version} but is missing the expected 'projects' table. ` +
+          `This usually means it was created by a pre-release build or a migration was interrupted. ` +
+          `Back it up if it holds data, delete it, and restart to re-initialise.`,
+      );
+    }
+  }
 }
 
 function listMigrationFiles(migrationsDir: string): { name: string; n: number }[] {
