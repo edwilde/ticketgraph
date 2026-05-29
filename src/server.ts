@@ -88,6 +88,12 @@ let shuttingDown = false;
 async function shutdown(server: Server, db: Database.Database | null): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
+  // Failsafe: if server.close() hangs (e.g. dead transport on an orphaned process),
+  // this unref'd timer guarantees exit within ~1 s regardless. unref() means the
+  // timer itself never keeps an idle event loop alive — it only forces exit on a hang.
+  // This also defeats the "guard set + hung close = immune to SIGTERM" wedge (defect #2).
+  const failsafe = setTimeout(() => process.exit(0), 1000);
+  failsafe.unref();
   logger.info("ticketgraph shutting down");
   try {
     db?.close();
@@ -147,6 +153,15 @@ async function main(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  // Exit when the parent process closes the stdio pipe (defect #1 fix).
+  // "end" fires on stdin EOF (parent exited cleanly); "close" covers fd close.
+  // SIGHUP covers terminal/parent hangup. All route through shutdown() so the
+  // db closes cleanly when possible. Using "end"/"close" events only — NOT a
+  // "data" listener — so we never steal bytes from the StdioServerTransport.
+  process.stdin.on("end", () => void shutdown(server, db));
+  process.stdin.on("close", () => void shutdown(server, db));
+  process.on("SIGHUP", () => void shutdown(server, db));
 }
 
 process.on("unhandledRejection", (err) => {

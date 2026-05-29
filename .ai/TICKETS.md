@@ -9,7 +9,7 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 
 | Done ✅ | In progress | Open |
 |---|---|---|
-| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T16, T17 | _(none)_ | T15 |
+| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18 | _(none)_ | _(none)_ |
 
 **All tickets complete (2026-05-29).** 410 tests across 42 files, deterministically green (verified 12/12 consecutive full-suite runs). 21 MCP tools, demo + sample parsers (both 100% heading parse on the live files), plugin manifest + install docs, README + usage + migration docs, and GitHub Actions CI (ubuntu + macOS).
 
@@ -258,6 +258,24 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 - For each item taken on: a fixture in `tests/fixtures/demo/` capturing the shape + a parser test asserting the improved output; the existing 22 fixtures stay green; the live-file calibration stays ≥95% headings parsed with NO increase in spurious relations.
 - Items not taken on are explicitly recorded as won't-do with the reason.
 **Notes:** runs the four-stage pipeline. Re-run migration with `force: true` after merging to refresh imported data.
+
+### T18 — Orphaned MCP server processes accumulate (no stdin-close handler; `shutdown()` hangs)
+**Status:** Open. **Type:** bug (resource leak / lifecycle). **Effort:** 2.
+**Found by:** a live debugging session (2026-05-29) diagnosing `kernel_task` CPU saturation on Ed's M1 Pro. The machine was thrashing swap (50 GB swap 99.5% full, load avg ~520, 0% idle). Root cause was ~60 orphaned `node dist/server.js` processes (~180 MB each, ≈10 GB RAM), all reparented to launchd (`ppid 1`), accumulated over a 4-day uptime. `pkill` (SIGTERM) failed to reap them — only `kill -9` worked, which is itself a symptom (see defect #2).
+**Root cause (two compounding defects):**
+1. **No stdin-EOF shutdown.** The stdio server only handles `SIGTERM`/`SIGINT`. When the parent Claude Code session exits it closes the stdio pipes but does not reliably signal the child; with no `process.stdin` `end`/`close` handler the orphaned server runs forever and reparents to launchd. Every session that spawns the server and exits uncleanly leaks one process.
+2. **`shutdown()` can hang, defeating SIGTERM.** `shutdown()` sets the `shuttingDown` guard, then `await server.close()`. For an orphan whose transport pipe is already dead, `server.close()` never resolves, so `process.exit(0)` is never reached — and the guard turns every subsequent SIGTERM into a no-op. The process is wedged half-shut and immune to normal kills.
+- Compounded by the **global MCP registration** in `~/.claude.json` (every Claude session everywhere spawns one), so leaks accumulate fast across projects.
+**Scope:**
+- Add stdin lifecycle handling at startup in `src/server.ts`: exit on `process.stdin` `end`/`close` (parent pipe gone) and handle `SIGHUP`. A stdio MCP server with no live parent has no reason to keep running.
+- Make `shutdown()` non-blocking-safe: arm an unref'd `setTimeout(() => process.exit(0), ~1000)` before `await server.close()`, so a hung close can never wedge the process. Keep `db.close()` / `server.close()` best-effort.
+- Do **not** narrow the MCP registration scope — global is intentional; the fix is correct lifecycle, not narrower scope.
+**Acceptance:**
+- Spawn the built server, send `initialize`, then close its stdin → process exits within ~1 s (assert via the existing stdio harness).
+- A server whose `server.close()` hangs still exits within the fallback window on SIGTERM (no wedged `shuttingDown` state).
+- Normal `SIGTERM`/`SIGINT` path still runs `shutdown()` cleanly (db closed, audit intact) — existing graceful-shutdown tests stay green.
+- Manual: opening then closing N Claude sessions leaves 0 residual `dist/server.js` processes (was: one leaked per session).
+**Notes:** runs the four-stage pipeline. Localized to `src/server.ts` + tests — no new features. One-time operational cleanup of existing orphans is `pkill -9 -f 'ticketgraph/dist/server.js'` (plain SIGTERM is ineffective per defect #2).
 
 ---
 
