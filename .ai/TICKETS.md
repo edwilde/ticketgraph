@@ -9,7 +9,7 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 
 | Done ✅ | In progress | Open |
 |---|---|---|
-| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14 | _(none)_ | T15 |
+| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14 | _(none)_ | T15, T16, T17 |
 
 **All tickets complete (2026-05-29).** 410 tests across 42 files, deterministically green (verified 12/12 consecutive full-suite runs). 21 MCP tools, sscloud + wesabe parsers (both 100% heading parse on the live files), plugin manifest + install docs, README + usage + migration docs, and GitHub Actions CI (ubuntu + macOS).
 
@@ -229,6 +229,35 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 **Notes:**
 - Effort: **3** (a normal day — the unknown is the plugin slash-command manifest format, not the logic; the tools already exist).
 - Runs the four-stage dream-skills pipeline like every other ticket. The plan's first job is to pin down the current plugin slash-command file format (consult Claude Code docs / the `claude-code-guide`).
+
+### T16 — Migration runner: detect & clearly report a version-ahead-of-schema DB
+**Status:** Open. **Type:** bug (robustness/UX). **Effort:** 2.
+**Found by:** a live migration session (2026-05-29) — `register_project` failed with a cryptic `no such table: projects` on a DB that had `user_version=1` but zero tables.
+**Root cause:** during the T3→T4 dev window, `001_init.sql` shipped first as an empty placeholder that bumped `user_version` to 1, then was filled with the real schema in T4. Any `~/.claude/tickets.db` created in that window has `user_version=1` and no tables. The migration runner trusts `user_version` and applies only migrations with `N > current` — so it applies nothing, the schema never lands, and the failure surfaces much later as a cryptic SQLite error from the first tool that touches a table.
+**Not recurring for fresh installs** (001 is now the full schema, so a new DB gets all tables at version 1) — but the runner has NO guard against a version/schema mismatch from ANY cause (interrupted migration, partially-applied future migration, a hand-edited DB). The cryptic-failure-much-later mode is the real defect.
+**Scope:**
+- After running migrations in `openDb()`, add a cheap startup integrity check: if `user_version >= 1` but a sentinel table (`projects`) is missing from `sqlite_master`, throw a clear, actionable `McpError`/Error naming the path and the likely cause, e.g.: `"Database at <path> reports schema version N but is missing expected tables (likely created by a pre-release build, or a migration was interrupted). Back it up and delete it, then restart to re-initialise."`.
+- The check is O(1) (one `sqlite_master` lookup); run it only when `user_version >= 1`.
+- Do NOT auto-delete or auto-repair the DB — surface the problem and let the operator decide (the DB may hold real data).
+**Acceptance:**
+- A DB fabricated with `PRAGMA user_version = 1` and no tables → `openDb()` throws the clear error (not a downstream `no such table`).
+- A normally-migrated DB (`user_version=1`, tables present) → no error, opens fine.
+- A fresh DB (`user_version=0`) → migrates to the full schema and passes the check.
+- Unit tests for all three in `src/db.test.ts`; the existing migration tests stay green.
+**Notes:** runs the four-stage pipeline. Captured in the migration-session memory anchor referenced by the feedback.
+
+### T17 — sscloud parser fidelity enhancements
+**Status:** Open. **Type:** enhancement (NOT a bug — current behaviour matches spec §7). **Effort:** 3.
+**Found by:** the same live migration session. Each item below is *working as designed per spec §7*; this ticket is to improve migration fidelity if/when it matters, with `import_json({ force: true })` re-run after a fix.
+**Scope (each item is opt-in; decide per item during planning):**
+1. **Body-level priority override.** Priority/epic are derived from the `## P<n> — Name` section heading (spec §7). A ticket whose body says e.g. "Refactor P1" while sitting under `## P3 — Polish` (real example: T112) imports as P3. *Option:* when a body line carries an explicit `P<n>` priority marker, let it override the section default. *Risk:* prose false-positives — must be a precise pattern, not any "P1" substring.
+2. **Type inference.** All sscloud tickets import as `type=task` (sscloud ids are bare `T<n>` with no type prefix, unlike wesabe). *Option:* infer `bug`/`spike` from title/heading keywords (e.g. "Spike:" → spike). *Risk:* keyword heuristics are noisy; keep conservative or skip.
+3. **`closed_at` from narrative ship-notes.** Only inline Status-line dates are parsed; most done tickets get `closed_at=NULL` (spec §7 explicitly allows this). *Option:* also scan the "Shipped (full list)" narrative paragraph for per-ticket dates and back-fill `closed_at`.
+4. **Prose-implied relations.** Only explicit patterns (`Blockers:`, `superseded by T<n>`, `Tracked as T<n>`) become relations; narrative-implied follow-ups (e.g. "T134 follows up T112" phrased loosely) aren't inferred. The plan deliberately chose conservative matching ("over-emitting noisy relations is worse than missing a few"). *Option:* add a small set of additional high-precision patterns; do NOT lower the precision bar.
+**Acceptance:**
+- For each item taken on: a fixture in `tests/fixtures/sscloud/` capturing the shape + a parser test asserting the improved output; the existing 22 fixtures stay green; the live-file calibration stays ≥95% headings parsed with NO increase in spurious relations.
+- Items not taken on are explicitly recorded as won't-do with the reason.
+**Notes:** runs the four-stage pipeline. Re-run migration with `force: true` after merging to refresh imported data.
 
 ---
 
