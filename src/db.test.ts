@@ -139,6 +139,61 @@ describe("openDb / migrations runner", () => {
     expect(synchronous).toBe(1); // 1 = NORMAL
   });
 
+  it("half-init DB (version=1, no tables) on write path throws integrity error", () => {
+    const dir = makeTmpDir();
+    const dbPath = join(dir, "half-init.db");
+
+    // Fabricate a DB with user_version=1 but zero tables.
+    const raw = new Database(dbPath);
+    raw.pragma("user_version = 1");
+    raw.close();
+
+    expect(() => openDb({ path: dbPath })).toThrow(/missing the expected 'projects' table/);
+  });
+
+  it("normal fresh DB migrates successfully and projects table exists", () => {
+    const dir = makeTmpDir();
+    const dbPath = join(dir, "fresh.db");
+
+    const { db } = openDb({ path: dbPath });
+    const row = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'")
+      .get();
+    db.close();
+
+    expect(row).toBeTruthy();
+  });
+
+  it("second openDb on migrated DB also passes integrity check", () => {
+    const dir = makeTmpDir();
+    const dbPath = join(dir, "migrated.db");
+
+    const { db: db1 } = openDb({ path: dbPath });
+    db1.close();
+
+    // Should not throw — tables exist, version=1.
+    expect(() => {
+      const { db: db2 } = openDb({ path: dbPath });
+      db2.close();
+    }).not.toThrow();
+  });
+
+  it("half-init DB (version=1, no tables) on read-only path throws integrity error", () => {
+    const dir = makeTmpDir();
+    const dbPath = join(dir, "half-init-ro.db");
+
+    // Fabricate a DB with user_version=1 but zero tables.
+    // Use WAL mode so the readonly open's journal_mode pragma doesn't fail.
+    const raw = new Database(dbPath);
+    raw.pragma("journal_mode = WAL");
+    raw.pragma("user_version = 1");
+    raw.close();
+
+    expect(() => openDb({ path: dbPath, readonly: true })).toThrow(
+      /missing the expected 'projects' table/,
+    );
+  });
+
   it("TICKETGRAPH_DB_PATH env var is respected when no path option is given", () => {
     const dir = makeTmpDir();
     const envDbPath = join(dir, "env-test.db");
