@@ -22,21 +22,6 @@ Single-user. Single-machine. No web service, no telemetry, no external APIs.
 
 ---
 
-## Why it's different from storybloq
-
-| | ticketgraph | storybloq |
-|---|---|---|
-| **Token cost per query** | <2k (design criterion) | unbounded |
-| **Licence** | MIT | proprietary |
-| **Relations** | typed, directional (`blocks`, `follows_up`, `supersedes`, `relates_to`) | flat |
-| **Scope** | single-user, single-machine | multi-user, team-facing |
-| **Team surfaces** | none | dashboards, notifications, sharing |
-| **Tool count** | ~21 | 53+ |
-
-ticketgraph's design constraint is that every common query fits in a Claude context window with room to spare. Storybloq is built for teams; ticketgraph is built for one person who wants Claude to know exactly what to work on next.
-
----
-
 ## Install
 
 ```sh
