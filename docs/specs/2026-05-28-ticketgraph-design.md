@@ -64,6 +64,16 @@ Anthropic's MCP SDK is most mature in TS. `better-sqlite3` ships with FTS5 enabl
 
 Ed bounces between projects. A global DB lets `tickets.list({ project: "all", priority: "P0" })` work natively. SQLite's single-file model survives backup-by-`cp` trivially. The project_id discriminator on every row enforces logical separation without the operational cost of N separate files.
 
+### Project resolution from cwd
+
+When a tool is called without an explicit `project` parameter, the server resolves the active project by:
+
+1. Reading `process.cwd()` and canonicalising it (`fs.realpathSync` — follow symlinks).
+2. Selecting the project whose `root_path` is the longest matching prefix of cwd. Equality counts as a match; nested checkouts therefore resolve to the parent project correctly.
+3. If no `root_path` is a prefix of cwd, returning a structured error pointing at `tickets.register_project`. Tools never silently fall back to a different project.
+
+Explicit `project: "<id>"` always overrides cwd resolution. `project: "all"` is the reserved cross-project scope on read tools (see §5).
+
 ## 5. Schema
 
 ```sql
@@ -146,6 +156,34 @@ CREATE TABLE audit_log (
 );
 CREATE INDEX idx_audit_changed_at ON audit_log (changed_at);
 CREATE INDEX idx_audit_ticket     ON audit_log (project_id, ticket_id);
+
+-- FTS5 synchronisation: keep tickets_fts in lockstep with tickets
+CREATE TRIGGER tickets_fts_ai AFTER INSERT ON tickets BEGIN
+  INSERT INTO tickets_fts (project_id, ticket_id, title, description)
+  VALUES (new.project_id, new.id, new.title, new.description);
+END;
+CREATE TRIGGER tickets_fts_ad AFTER DELETE ON tickets BEGIN
+  DELETE FROM tickets_fts WHERE project_id = old.project_id AND ticket_id = old.id;
+END;
+CREATE TRIGGER tickets_fts_au AFTER UPDATE OF title, description ON tickets BEGIN
+  UPDATE tickets_fts
+    SET title = new.title, description = new.description
+    WHERE project_id = new.project_id AND ticket_id = new.id;
+END;
+
+-- closed_at maintenance: set on transition into done/deferred, clear on return to non-terminal.
+-- Application code (not a trigger) writes the audit_log row so the operator id is preserved.
+CREATE TRIGGER tickets_closed_at_set AFTER UPDATE OF status ON tickets
+WHEN new.status IN ('done', 'deferred') AND old.status NOT IN ('done', 'deferred') BEGIN
+  UPDATE tickets
+    SET closed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    WHERE project_id = new.project_id AND id = new.id AND closed_at IS NULL;
+END;
+CREATE TRIGGER tickets_closed_at_clear AFTER UPDATE OF status ON tickets
+WHEN new.status NOT IN ('done', 'deferred') AND old.status IN ('done', 'deferred') BEGIN
+  UPDATE tickets SET closed_at = NULL
+    WHERE project_id = new.project_id AND id = new.id;
+END;
 ```
 
 ### Notes on schema choices
@@ -158,6 +196,28 @@ CREATE INDEX idx_audit_ticket     ON audit_log (project_id, ticket_id);
 - **All relations are directional** with no symmetric special-case. `tickets.related` returns both incoming and outgoing edges labelled, so callers never have to guess direction.
 - **`tickets_vec` is intentionally reserved** as a name for a future embedding sidecar table. Schema is forward-compatible without rewrites.
 - **Audit log is append-only.** Single writer, no GC for v1. At ~100 bytes per row and ~10 writes per day, the table will be <1 MB after a year.
+- **`audit_log` has no foreign key to `tickets`.** Deliberately decoupled so the log survives any future hard-delete tool and so re-imports don't cascade-delete history. The `(project_id, ticket_id)` index is the join path.
+- **Timestamps are UTC ISO 8601 with millisecond precision** (`YYYY-MM-DDTHH:MM:SS.sssZ`). Server-set on every write; clients never pass `created_at`/`changed_at`/`closed_at` directly. The SQLite expression `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')` is the canonical generator.
+- **Relation direction is canonical.** The `from` ticket is always the active party:
+  - `from blocks to` → `from` is the blocker; `to` is waiting on `from`. `tickets.blockers_of(X)` therefore looks for rows with `to = X`.
+  - `from follows_up to` → `from` is the follow-up; `to` is the predecessor.
+  - `from supersedes to` → `from` is the replacement; `to` is the retired ticket (typically `status = done` with a `closed_at` reflecting the supersession).
+  - `from relates_to to` is the only symmetric kind; either direction is valid and `tickets.related` will still surface it from both ends.
+  `tickets.related` always labels edges by direction (`incoming`/`outgoing`) and kind so callers never have to remember the convention.
+- **`kind` is validated in server code, not via a DB `CHECK` constraint.** Known kinds: `blocks`, `follows_up`, `supersedes`, `relates_to`. Keeping enforcement in code lets `tickets.link({ force: true })` admit a future kind without a schema migration; the canonical answer is still the set above.
+- **Reserved project ids.** `"all"` is reserved as the cross-project scope on read tools and may not be registered. `tickets.register_project({ id: "all" })` rejects with a clear error. `"current"` is similarly reserved against future use.
+- **Tag normalisation.** Tags are stored lowercase-trimmed (`tag.trim().toLowerCase()`). `tickets.add_tag({ tag: "  FTS  " })` stores `fts`. Comparisons are exact-match on the normalised form.
+- **Audit log row shapes** (one row per atomic change; the writer is responsible for the row — no audit triggers, so application-level transactions wrap the write + audit pair):
+  - Ticket creation: `field='_created'`, `old_value=NULL`, `new_value=<id>`.
+  - Field change: `field=<column-name>`, `old_value=<prior-value-or-NULL>`, `new_value=<new-value-or-NULL>`.
+  - `description` overwrite (`tickets.update`): `field='description'`, full new description in `new_value` (accept the bloat; rare relative to appends).
+  - `description` append (`tickets.append_to_description`): `field='description:append'`, the appended text only in `new_value`. Cheaper to scan in `changed_since`.
+  - Relation add: `field='relation:<kind>'`, `old_value=NULL`, `new_value='<from>-><to>'`.
+  - Relation remove: `field='relation:<kind>'`, `old_value='<from>-><to>'`, `new_value=NULL`.
+  - Tag add: `field='tag'`, `old_value=NULL`, `new_value=<tag>`.
+  - Tag remove: `field='tag'`, `old_value=<tag>`, `new_value=NULL`.
+  - `parent_id` change: `field='parent_id'`, `old_value=<old-parent-or-NULL>`, `new_value=<new-parent-or-NULL>`.
+- **Effort sums in `tickets.stats` exclude umbrellas naturally.** §15 rule 6 sets umbrella `effort` to NULL; `SUM(effort)` skips NULLs, so umbrella points are never double-counted alongside their children.
 
 ## 6. MCP tool surface
 
@@ -168,14 +228,14 @@ Auto-scoped to current project from cwd; pass `project: "<id>"` to override, `pr
 | Tool | Returns | Typical token cost |
 |---|---|---|
 | `tickets.list` | summary rows (id, title, status, priority, type, effort, epic, parent_id) — *no descriptions* | 200-1500 |
-| `tickets.get` | one or more full tickets with relations and last N audit entries | 500-5000 per ticket |
+| `tickets.get` | one or more full tickets with relations and last N audit entries. `ids` array capped at 10 per call to bound response size. | 500-5000 per ticket |
 | `tickets.search` | up to N (default 10) FTS5-ranked hits with 240-char snippets | 200-1000 |
-| `tickets.next` | the highest-priority unblocked open ticket (with reason) | 100-300 |
-| `tickets.related` | both incoming and outgoing relations for a ticket, labelled by direction and kind | 100-1000 |
-| `tickets.blockers_of` | dependency tree rooted at a ticket; convenience over `tickets.related` with kind=blocks | 100-1000 |
-| `tickets.children_of` | direct children + grandchildren of an umbrella, by `parent_id` | 100-1500 |
+| `tickets.next` | the highest-priority `status='open'`, unblocked ticket (no incoming `blocks` edges from a non-`done`/`deferred` ticket). Returns `{ ticket, reason: { priority, age_days, no_open_blockers: true } }`. Sort: `priority ASC NULLS LAST, created_at ASC`. | 100-300 |
+| `tickets.related` | incoming and outgoing relations for a ticket, labelled by direction and kind. Recurses up to `depth` (default 1, max 3). | 100-1000 |
+| `tickets.blockers_of` | tickets that block this one — incoming `blocks` edges, recursed up to `depth` (default 2, max 3) to surface the full dependency tree rooted at the ticket. | 100-1000 |
+| `tickets.children_of` | descendants of an umbrella via `parent_id`, recursed up to `depth` (default 2, max 3). | 100-1500 |
 | `tickets.changed_since` | audit-log slice for "what changed today/this week", with optional field/new_value filters | 100-1000 |
-| `tickets.stats` | counts grouped by status/priority/epic/type, plus point totals grouped by effort and by epic, for the active project | <150 |
+| `tickets.stats` | counts grouped by status/priority/epic/type, plus point totals grouped by effort and by epic, for the active project. Supports `project: "all"` for cross-project aggregates. | <150 |
 | `tickets.validate` | referential integrity report: orphan parent_ids, dangling relations, status invariants | 50-500 |
 
 ### Default filters and budgets
@@ -190,7 +250,7 @@ Auto-scoped to current project from cwd; pass `project: "<id>"` to override, `pr
 
 | Tool | What it does |
 |---|---|
-| `tickets.add` | Create a ticket. Auto-assigns next id in the project's numbering scheme unless `id` is provided. |
+| `tickets.add` | Create a ticket. If `id` is supplied it is used verbatim (must be unique within the project). If omitted, the server inspects the project's existing ids: when a single prefix dominates (e.g. all `T<n>`), it uses that prefix with `max(n)+1`; when multiple prefixes co-exist (e.g. sample's `BUG-`/`FEAT-`/`UX-`/`DESIGN-`/`SETUP-`), `tickets.add` errors and forces the caller to pass `id` explicitly. Fallback for an empty project: `T1`. Writes a `_created` audit row. |
 | `tickets.update` | Patch any field on a ticket. Each changed field appends to audit_log. |
 | `tickets.append_to_description` | Append text to a ticket's description (for demo-style accreting ship-notes). |
 | `tickets.link` | Create a relation `from -> to` with `kind` and optional `note`. |
@@ -202,8 +262,10 @@ Auto-scoped to current project from cwd; pass `project: "<id>"` to override, `pr
 
 | Tool | What it does |
 |---|---|
-| `tickets.register_project` | One-time registration: id, display_name, root_path. |
-| `tickets.import_json` | Bulk import from the unified JSON intermediate format. Supports `dry_run: true`. |
+| `tickets.ping` | Liveness check. Returns `{ ok: true, version, db_path, schema_version }`. Used by setup scripts, the vitest stdio harness, and "is this thing on?" prompts. No side effects. |
+| `tickets.register_project` | One-time registration: id, display_name, root_path. Rejects reserved ids (`all`, `current`) and duplicate `root_path`. |
+| `tickets.update_project` | Update a registered project's `display_name` or `root_path` (e.g. when a repo moves). `id` is immutable. |
+| `tickets.import_json` | Bulk import from the unified JSON intermediate format (see §7). Supports `dry_run: true`. Refuses to overwrite existing `(project_id, id)` rows unless `force: true`. |
 | `tickets.dump` | Debug-only raw row export for a project. Token-heavy; not for normal queries. |
 
 ### Deliberate omissions
@@ -217,9 +279,49 @@ Auto-scoped to current project from cwd; pass `project: "<id>"` to override, `pr
 
 Two projects to migrate: **demo** and **sample**. acme is excluded (basically done; user explicitly said skip).
 
+### Unified JSON intermediate
+
+Each parser writes to one file: `tickets-import-<project>.json`. `tickets.import_json` is the only consumer.
+
+```json
+{
+  "project_id": "demo",
+  "tickets": [
+    {
+      "id": "T123",
+      "title": "Tighten the FTS ranking",
+      "description": "Scope: ...\n\nAcceptance: ...",
+      "status": "open",
+      "priority": "P1",
+      "type": "task",
+      "effort": 3,
+      "epic": "Search",
+      "parent_id": null,
+      "created_by": "ed",
+      "created_at": "2026-04-01T09:00:00.000Z",
+      "closed_at": null,
+      "tags": ["fts", "ranking"]
+    }
+  ],
+  "relations": [
+    { "from": "T123", "to": "T112", "kind": "follows_up", "note": null }
+  ]
+}
+```
+
+Contract:
+
+- `project_id` must match an already-registered project. Importer aborts otherwise.
+- Three-pass write inside one transaction: (1) insert tickets with `parent_id` blanked, (2) update `parent_id` once all rows exist, (3) insert relations. Forward references inside the same file are therefore safe.
+- Missing fields default per §5 (`status` → `open`, `type` → `task`, `effort`/`priority`/`epic` → NULL).
+- `created_at` is honoured if supplied (parsers reconstruct it from narrative dates) and defaulted to import time otherwise.
+- `dry_run: true` validates and returns `{ counts: { tickets, relations, tags }, warnings }` without mutating.
+- Duplicates: `(project_id, id)` collisions surface in `warnings` and abort the live import unless `force: true`.
+- Audit log on live import: every inserted ticket gets a `_created` row stamped with `changed_at = created_at` so `changed_since` still tells the truth for back-dated history.
+
 ### Per-project parser
 
-One small TypeScript parser per source format, writing to a unified JSON intermediate (`tickets-import-<project>.json`) that the generic `tickets.import_json` MCP tool ingests.
+One small TypeScript parser per source format. Each emits the JSON intermediate above; the generic `tickets.import_json` MCP tool ingests it.
 
 **demo parser:**
 - `### T123 — Title` heading -> `id` + `title`
@@ -253,8 +355,10 @@ One small TypeScript parser per source format, writing to a unified JSON interme
 ### Open migration decisions (defaults committed)
 
 - **Commit IDs (e.g. `commit 20d91af`) inside ticket bodies**: preserved verbatim in `description`, not parsed into a structured field.
-- **Already-superseded tickets** (demo T41 "superseded by T70"): row is created with `status=done`, a `T70 supersedes T41` relation is added in the second pass.
+- **Already-superseded tickets** (demo T41 "superseded by T70"): row is created with `status=done`, a `T70 supersedes T41` relation (per the direction convention in §5) is added in the second pass.
 - **Tickets with no acceptance criteria block**: `description` field is the concatenated scope + ship-notes; `acceptance_criteria` is not a separate column.
+- **`closed_at` from narrative ship-notes**: a date like "shipped 2025-12-15" is normalised to `2025-12-15T00:00:00.000Z`. When no date is parseable, `closed_at` is left NULL and `status=done` is still authoritative.
+- **`created_by` during migration**: defaulted to `"migrated:<project_id>"` so post-migration audit reports can distinguish historical rows from anything Claude or Ed adds afterwards.
 
 ## 8. Search ranking and query semantics
 
@@ -367,6 +471,8 @@ Wins borrowed from storybloq: the `type` field, `parent_id` umbrella hierarchy, 
 | `better-sqlite3` native build breaks on macOS upgrade | Pin to a known-good version; CI smoke test on macOS runner. |
 | Project_id collision when registering | UNIQUE on `root_path` and PRIMARY KEY on `id`; `register_project` rejects duplicates with a clear error. |
 | Audit log unbounded growth | Single user, ~10 writes/day -> negligible. Add `audit.purge_before` tool only if it becomes a real problem. |
+| Two Claude Code sessions launch concurrent MCP server processes against the same DB | SQLite WAL mode (set in §9 startup) supports many concurrent readers and one writer. Writes use `BEGIN IMMEDIATE` so lock contention surfaces as a fast `SQLITE_BUSY` rather than a stalled transaction. Acceptable for v1; if it becomes painful, the fix is an in-process advisory lock keyed off the DB path. |
+| Description audit rows bloat the audit log | Overwrites store the full new description; appends store only the appended chunk. The dominant write pattern (accreting ship-notes) is append, so the worst case is bounded. Re-evaluate if `audit_log` crosses ~10 MB. |
 
 ## 14. Implementation order (suggested for writing-plans)
 
@@ -433,6 +539,20 @@ These are the values Claude should assign to ticketgraph's own implementation ti
 | 10. README + minimal usage docs | 2 |
 
 If when actually doing the work these turn out wildly off, update the rubric — the goal is calibrated future estimates, not preserving the initial guess.
+
+## 16. Testing strategy
+
+The §10 acceptance budgets are assertion-backed, not eyeballed. Every ticket lands with the tests that enforce its slice of those budgets.
+
+- **TDD throughout.** Write the failing test (or the test that captures the bug) first, then the minimum code that turns it green. No ticket closes without the test that failed before the change.
+- **Single runner: vitest.** Configured in T1; ESM, Node environment, coverage opt-in via `npm test -- --coverage`.
+- **Three layers, all required:**
+  - **Unit** — pure functions only: parser heuristics, ID inference, FTS query sanitisation, audit-row shaping, time-format helpers. Fast, no I/O.
+  - **Integration** — the stdio MCP harness from T2, running against real `better-sqlite3` with real triggers. Each test gets a fresh temp DB (`TICKETGRAPH_DB_PATH=$(mktemp -d)/test.db`); tests never touch the live `~/.claude/tickets.db`.
+  - **Budget** — response size measured against a seeded fixture (`tests/fixtures/seed-100.sql`, ~100 tickets / ~30 relations / ~50 audit rows). Each tool's §10 budget is an `expect(bytes).toBeLessThan(budget * 4)` assertion (bytes-over-4 is a conservative token proxy; §10 margins are wide enough that exact tokenisation isn't worth the dependency). Latency p99s are asserted with the same fixture.
+- **Parser fixtures are version-controlled.** demo and sample parser tests load from `tests/fixtures/demo/*.md` and `tests/fixtures/sample/*.md`, never the user's live `~/Scripts/<project>/.ai/TICKETS.md`. The live file changes underneath the tests and would make them flaky.
+- **Acceptance bullets in `TICKETS.md` are test specs.** Each Acceptance bullet maps to one named `describe`/`it`. No bullet without a test, no test without a bullet. `/review-implementation` enforces the round-trip.
+- **CI: GitHub Actions** (`.github/workflows/ci.yml`, ticket T13). Matrix: Node 20 LTS on `ubuntu-latest` and `macos-latest`. The macOS runner is non-negotiable — it catches the §13 `better-sqlite3` native-build risk before Ed hits it on his own machine. Workflow body: `npm ci && npm run build && npm test`. Local `npm test` green is still the developer gate; CI is the second opinion for macOS-specific breakage and reviewer-side regressions.
 
 ---
 
