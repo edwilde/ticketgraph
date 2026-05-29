@@ -64,6 +64,8 @@ Three example queries that cover the most common cases:
 
 For more examples covering add, update, next, stats, changed_since, and cross-project queries, see [docs/usage.md](docs/usage.md).
 
+Bundled slash commands: `/ticketgraph:tickets-add|status|next|open|done` — see [docs/usage.md](docs/usage.md#slash-commands).
+
 ---
 
 ## Tool reference
