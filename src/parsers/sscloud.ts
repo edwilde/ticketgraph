@@ -59,6 +59,10 @@ function expandRanges(text: string): string {
  * Normalise an inline ship date to ISO 8601 format (YYYY-MM-DDTHH:MM:SS.sssZ).
  * Returns null if no date found.
  * Patterns: "2026-05-27", "2026-05-27T..." etc.
+ *
+ * NOTE (T17): closed_at is parsed from the per-ticket Status line only; the
+ * cross-ticket "Shipped (full list)" narrative paragraph is intentionally not
+ * mined (T17 — low value now that the live file is gone; reopen if needed).
  */
 function parseShipDate(text: string): string | null {
   const m = text.match(/\b(\d{4}-\d{2}-\d{2})\b/);
@@ -126,6 +130,12 @@ export function parseSscloudWithReport(md: string): {
       const id = headingMatch[1]!;
       const title = headingMatch[2]!.trim();
 
+      // --- Type inference ---
+      // Spike: title starts with "Spike" (case-insensitive word boundary).
+      // Only this one high-precision signal is inferred; other types (bug,
+      // umbrella, etc.) have no reliable keyword anchor in sscloud's format.
+      const type = /^Spike\b/i.test(title) ? "spike" : undefined;
+
       // --- Status ---
       const statusLineMatch = ticketText.match(/^\*\*Status:\*\*(.*)$/m);
       const rawStatusLine = statusLineMatch ? statusLineMatch[1]!.trim() : "";
@@ -175,9 +185,14 @@ export function parseSscloudWithReport(md: string): {
         description = acceptancePart;
       }
 
+      // NOTE (T17): Priority is section-heading-canonical (spec §7); body
+      // "P<n>" mentions (e.g. "T112 (BaseCommand consolidation P1)") describe
+      // OTHER tickets and are NOT treated as a priority override for the host
+      // ticket — see T17 review record.
       tickets.push({
         id,
         title,
+        type,
         description: description || undefined,
         status,
         priority,
@@ -217,6 +232,32 @@ export function parseSscloudWithReport(md: string): {
     const trackedAs = rawStatus.match(/Tracked as (T\d+)/);
     if (trackedAs) {
       relations.push({ from: ticket.id, to: trackedAs[1]!, kind: "follows_up" });
+    }
+
+    // Prose-implied follows_up relations — two high-precision anchors only.
+    // Precision-first: do NOT match bare "follow-up" or "follows up" mentions.
+
+    // Anchor 1: "follow-up tickets filed: T<a> …, T<b> …"
+    // Extract all T<n> refs from the clause following the anchor.
+    const followUpFiled = rawStatus.match(/follow-up tickets filed:\s*(.+)/i);
+    if (followUpFiled) {
+      for (const ref of extractTicketRefs(followUpFiled[1]!)) {
+        if (ref !== ticket.id) {
+          relations.push({ from: ref, to: ticket.id, kind: "follows_up" });
+        }
+      }
+    }
+
+    // Anchor 2: "Spawned … follow-ups"
+    // expandRanges already turned T112-T115 → "T112, T113, T114, T115" in the
+    // status text, so extractTicketRefs finds individual refs directly.
+    const spawned = rawStatus.match(/Spawned\s+(.+?)\s+follow-ups/i);
+    if (spawned) {
+      for (const ref of extractTicketRefs(spawned[1]!)) {
+        if (ref !== ticket.id) {
+          relations.push({ from: ref, to: ticket.id, kind: "follows_up" });
+        }
+      }
     }
   }
 
