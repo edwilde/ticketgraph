@@ -16,6 +16,28 @@ For the resolution algorithm detail, see §4 of the [design spec](specs/2026-05-
 
 ---
 
+## Slash commands
+
+Five slash commands are bundled with the plugin for the high-frequency loop. They surface as `/ticketgraph:<name>` in the Claude Code command menu after plugin load (run `/reload-plugins` in dev, or restart Claude Code after install).
+
+| Command | What it does | Underlying MCP tool |
+|---|---|---|
+| `/ticketgraph:tickets-add [title]` | Create a new ticket | `tickets.add` |
+| `/ticketgraph:tickets-status` | Show counts and point totals for the current project | `tickets.stats` |
+| `/ticketgraph:tickets-next` | Recommended next ticket to work on (highest-priority, no open blockers) | `tickets.next` |
+| `/ticketgraph:tickets-open` | List all open, in-progress, and blocked tickets | `tickets.list` |
+| `/ticketgraph:tickets-done [id]` | Mark a ticket as done | `tickets.update` |
+
+**Activation:** after install or `/reload-plugins`, verify with `/ticketgraph:tickets-status` — it should return the current project's stats.
+
+**Manual acceptance checklist:**
+1. `/reload-plugins` (dev) or reinstall → the five commands appear under `/ticketgraph:` in the slash menu with their descriptions.
+2. `/ticketgraph:tickets-add Test ticket` → creates a ticket, reports the id.
+3. `/ticketgraph:tickets-status` → returns the project stats.
+4. `/ticketgraph:tickets-done <id>` → flips it to done, `closed_at` set.
+
+---
+
 ## Example prompts
 
 ### 1. Show open P0s
