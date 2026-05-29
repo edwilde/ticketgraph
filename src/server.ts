@@ -49,6 +49,7 @@ import { makeChildrenOfTool } from "./tools/children_of.js";
 import { makeChangedSinceTool } from "./tools/changed_since.js";
 import { makeValidateTool } from "./tools/validate.js";
 import { makeImportJsonTool } from "./tools/import_json.js";
+import { makeAddManyTool } from "./tools/add_many.js";
 import type { AnyTool } from "./tools/types.js";
 
 function makeToolRegistry(deps: {
@@ -61,6 +62,7 @@ function makeToolRegistry(deps: {
     makePingTool(deps) as unknown as AnyTool,
     makeRegisterProjectTool(db) as unknown as AnyTool,
     makeAddTool(db, getClientRoots) as unknown as AnyTool,
+    makeAddManyTool(db, getClientRoots) as unknown as AnyTool,
     makeListTool(db, getClientRoots) as unknown as AnyTool,
     makeGetTool(db, getClientRoots) as unknown as AnyTool,
     makeStatsTool(db, getClientRoots) as unknown as AnyTool,

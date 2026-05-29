@@ -9,9 +9,11 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 
 | Done ✅ | In progress | Open |
 |---|---|---|
-| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18 | _(none)_ | _(none)_ |
+| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19 | _(none)_ | T20 |
 
-**All tickets complete (2026-05-29).** 410 tests across 42 files, deterministically green (verified 12/12 consecutive full-suite runs). 21 MCP tools, demo + sample parsers (both 100% heading parse on the live files), plugin manifest + install docs, README + usage + migration docs, and GitHub Actions CI (ubuntu + macOS).
+**T1–T18 complete (2026-05-29).** 410 tests across 42 files, deterministically green (verified 12/12 consecutive full-suite runs). 21 MCP tools, demo + sample parsers (both 100% heading parse on the live files), plugin manifest + install docs, README + usage + migration docs, and GitHub Actions CI (ubuntu + macOS).
+
+**T19, T20 (user-requested, 2026-05-29):** batch ticket creation (`tickets.add_many`) and a token-efficiency review of tool response shapes — both motivated by batch-add sessions where N single `tickets.add` calls each echo a full ticket row back.
 
 **T14 (user-requested):** roots-based project resolution — a global server's `process.cwd()` is its spawn dir, not the user's active project, so cwd auto-scoping now resolves from MCP client roots (with cwd fallback).
 
@@ -276,6 +278,42 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 - Normal `SIGTERM`/`SIGINT` path still runs `shutdown()` cleanly (db closed, audit intact) — existing graceful-shutdown tests stay green.
 - Manual: opening then closing N Claude sessions leaves 0 residual `dist/server.js` processes (was: one leaked per session).
 **Notes:** runs the four-stage pipeline. Localized to `src/server.ts` + tests — no new features. One-time operational cleanup of existing orphans is `pkill -9 -f 'ticketgraph/dist/server.js'` (plain SIGTERM is ineffective per defect #2).
+
+### T19 — `tickets.add_many`: batch create over a shared `insertBatch` core
+**Status:** Done (2026-05-29). **Type:** enhancement (token efficiency + ergonomics). **Effort:** 3.
+**As-built:** `.ai/implementation-plans/2026-05-29-T19-add-many.md` (four-stage pipeline; 22 MCP tools; 486 tests green). `insertBatch` core extracted from `import_json`; `inferNextIds` batch auto-id; `tickets.add_many` returns a compact `{ created, count, warnings? }`.
+**Found by:** a design discussion (2026-05-29). Tickets are often created in batches; today that's N separate `tickets.add` calls, and each one returns a **full 13-field ticket row** (`add.ts:241-245`) that mostly just echoes the inputs Claude already sent. `tickets.import_json` already does true bulk insert in one transaction and returns **compact counts, not rows** (`import_json.ts:346-354`) — but it only reads from a file on disk (`readFileSync`, `import_json.ts:97`), so it's the wrong tool for inline conversational batches.
+**Decision (why a new tool, not a polymorphic `tickets.add`):** a single tool that accepts *either* a ticket *or* an array would return two different result shapes (`{ ticket }` vs `{ counts }`) and need a `oneOf` input schema — both are accuracy hazards for an LLM-operated tool, which selects reliably by tool *name* but handles result-shape branching and schema unions poorly. A "delegate the array to `import_json` behind the scenes" path also silently loses auto-id: `import_json` requires an explicit `id` on every ticket (`import-format.ts:70`), whereas `tickets.add` infers it (`inferNextId`, `add.ts:151-157`). So `tickets.add` stays untouched; a purpose-built `add_many` keeps auto-id and intra-batch references.
+**Scope:**
+- Extract the 3-pass insert from `import_json`'s transaction (`import_json.ts:197-319` — insert tickets → set `parent_id` → insert relations, with tags + `_created` audit) into a shared `insertBatch(db, projectId, tickets, relations)` helper in `src/lib/`. `import_json` becomes *read file → validate → `insertBatch`*; behaviour and existing tests unchanged.
+- New tool `tickets.add_many({ project?, tickets: AddArgs[], relations? })` = *take inline array → validate → `insertBatch`*.
+- **Auto-id within the batch:** when a ticket omits `id`, infer the project's next id once and increment sequentially across the batch (reuse `inferNextId`'s numbering scheme). Explicit ids and auto ids may mix in one call.
+- **Intra-batch references:** a ticket's `parent_id` (or a relation endpoint) may point at a sibling created in the same call — the multi-pass `insertBatch` already resolves this. Document it.
+- **Result shape:** compact — `{ created: string[], count, warnings? }`. Do **not** return full rows (that's the whole point). One id list, not N rows.
+- **Atomicity:** all-or-nothing in one transaction (inherited from `insertBatch`) — one invalid ticket rolls the whole batch back. State this in the tool description so the model expects it (single-add lets partial progress survive; batch does not).
+**Acceptance:**
+- `tickets.add_many` with N inline tickets creates all N in one transaction and returns the compact id list (no full rows).
+- Omitting `id` on every ticket assigns sequential ids in the project's scheme; mixing explicit + auto ids in one call works.
+- A ticket whose `parent_id` references a sibling created in the same call resolves correctly (multi-pass).
+- One invalid ticket → entire batch rolls back, clear `McpError` naming the offending ticket; DB unchanged.
+- `import_json` still passes all existing tests after the `insertBatch` extraction (no behaviour change).
+- Token check against the seeded fixture: an N-ticket `add_many` response is a compact id list, materially cheaper than N `tickets.add` responses.
+**Notes:** runs the four-stage pipeline. Relates to T20 — `tickets.add`'s own full-row return is a T20 candidate. Effort **3**: the logic exists; the work is the clean `insertBatch` factoring + auto-id-across-batch + tests.
+
+### T20 — Token-efficiency review of tool response shapes
+**Status:** Open. **Type:** spike → enhancement (token efficiency). **Effort:** 3.
+**Found by:** the same design discussion (2026-05-29). Question to answer: **is there scope to cut response token count without losing key data?** Several tools return more than the caller strictly needs — most clearly `tickets.add`, which returns the full 13-field row (`add.ts:241-245`) that largely echoes the inputs Claude just sent plus defaults; the only genuinely new datum is the assigned `id`.
+**Scope (audit first, then targeted trims — do NOT trim blind):**
+- Inventory every tool's response shape and classify each returned field as: (a) **new information** the caller didn't send (assigned id, computed counts, server defaults, relations, audit), (b) **echo** of caller input, or (c) **derivable/rarely-needed**.
+- Known candidates to examine: `tickets.add` full-row return; `tickets.get` last-10 audit entries and full relation grouping; `tickets.list` summary field set; `tickets.update` return shape; the `warnings`/`counts` verbosity in import paths.
+- **Preserve key data — prefer opt-in verbosity over deletion.** Where a field is sometimes needed, gate it behind a param (e.g. `fields?` / `verbose?` / `include_audit?`) rather than dropping it, so the lean shape is the default and full data is one flag away. Default shapes must still satisfy the existing per-tool token budgets in the design spec (§16 / the T5–T8 acceptance budgets) — this tightens them, never loosens.
+- Produce a short findings doc (per-tool: current cost, proposed shape, tokens saved, risk) and land only the changes that are clear wins. Anything ambiguous is recorded as won't-do with the reason.
+**Acceptance:**
+- A findings doc in `.ai/` enumerating every tool's response classification and the recommended change (or explicit no-change) per tool.
+- Each accepted change keeps all key data reachable (default-lean, opt-in-full) — no information becomes *unrecoverable* via the tool surface.
+- Measured token deltas on the seeded fixture for each changed tool; existing token-budget acceptance tests stay green (and are tightened where a default got leaner).
+- Existing behaviour/tests for unchanged tools stay green.
+**Notes:** runs the four-stage pipeline. Relates to T19 (batch result shape) — `add_many` should land with the lean shape this review endorses. Effort **3**: the audit is bounded (~21 tools); implementation depends on findings and may be smaller.
 
 ---
 

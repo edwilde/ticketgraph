@@ -91,6 +91,7 @@ Bundled slash commands: `/ticketgraph:tickets-add|status|next|open|done` — see
 | Tool | Description |
 |---|---|
 | `tickets.add` | Create a new ticket. Auto-generates an id if omitted. |
+| `tickets.add_many` | Create many tickets in one transaction (auto-ids, intra-batch parent/relations). All-or-nothing; returns created ids. |
 | `tickets.update` | Patch any subset of a ticket's mutable fields. Writes one audit row per changed field. |
 | `tickets.append_to_description` | Append text to a ticket's description. |
 

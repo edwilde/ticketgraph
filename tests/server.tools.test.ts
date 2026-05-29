@@ -111,7 +111,8 @@ describe("MCP tools end-to-end 7-step flow", () => {
     expect(toolNames).toContain("tickets.changed_since");
     expect(toolNames).toContain("tickets.validate");
     expect(toolNames).toContain("tickets.import_json");
-    expect(toolNames).toHaveLength(21);
+    expect(toolNames).toContain("tickets.add_many");
+    expect(toolNames).toHaveLength(22);
 
     // Step 2: register project.
     const reg = await callTool(child, "tickets.register_project", {

@@ -321,6 +321,19 @@ describe("tickets.import_json", () => {
     db.close();
   });
 
+  it("result does not expose insertBatch's 'created' field", async () => {
+    const { db, tool, dir } = setup();
+    const filePath = writeImportFile(dir, {
+      project_id: "demo",
+      tickets: [{ id: "T1", title: "Only ticket" }],
+    });
+
+    const result = await tool.handle(tool.parseArgs({ project: "demo", file: filePath }));
+
+    expect(result).not.toHaveProperty("created");
+    db.close();
+  });
+
   it("closed_at is preserved from file when present", async () => {
     const { db, tool, dir } = setup();
     const filePath = writeImportFile(dir, {

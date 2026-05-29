@@ -159,6 +159,28 @@ tickets.list({ "project": "all", "priority": "P0" })
 
 ---
 
+### 10. Add several tickets at once
+
+**Prompt:** "add these five tickets: ..." or "create a batch of tickets for the auth redesign"
+
+**Call:**
+```json
+tickets.add_many({
+  "tickets": [
+    { "id": "T50", "title": "Auth redesign: audit existing flows", "type": "spike" },
+    { "id": "T51", "title": "Auth redesign: implement OAuth2 provider", "parent_id": "T50" },
+    { "title": "Auth redesign: update tests" }
+  ],
+  "relations": [
+    { "from": "T50", "to": "T51", "kind": "blocks" }
+  ]
+})
+```
+
+**Why:** `tickets.add_many` creates all tickets in one transaction — either all succeed or none do. Tickets that omit `id` get auto-assigned sequential ids. Tickets referenced as `parent_id` or relation endpoints within the same call must have explicit ids (auto-assigned ids aren't known at author time). Returns `{ created: ["T50", "T51", "T52"], count: 3 }`.
+
+---
+
 ## Other useful calls
 
 ### Get a full ticket
