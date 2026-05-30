@@ -230,3 +230,13 @@ tickets.validate({})
 ```
 
 Checks for orphan `parent_id` values, dangling relations, and `closed_at` inconsistencies. Returns `{ ok, issues }` — `ok` is `true` when no error-severity issues exist.
+
+### Export a markdown snapshot
+
+```json
+tickets.export({})
+```
+
+Renders the project's tickets to a human-readable markdown file (default `<root>/.ai/TICKETS.md`; pass `path` to override) and returns `{ path, bytes, ticket_count, exported_at }` — not the body. The file opens with a loud generated-at banner: it is a point-in-time snapshot, the DB is the source of truth, and the file **will drift** until you re-run the export.
+
+> **Overwrites** the target file every time. The export reflects only what the DB holds (fields + each ticket's `description` verbatim) — it does not reconstruct hand-authored prose that was never stored. `~` is not expanded; relative `path` resolves against the project root.

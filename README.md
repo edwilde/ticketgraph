@@ -16,7 +16,7 @@ ticketgraph makes every common ticket query cost hundreds of tokens, not tens of
 
 ## What it is
 
-A Claude Code plugin that exposes ~21 MCP tools over one global SQLite database at `~/.claude/tickets.db`. You ask Claude natural-language questions; Claude calls the right tool; the answer comes back lean.
+A Claude Code plugin that exposes ~23 MCP tools over one global SQLite database at `~/.claude/tickets.db`. You ask Claude natural-language questions; Claude calls the right tool; the answer comes back lean.
 
 Single-user. Single-machine. No web service, no telemetry, no external APIs.
 
@@ -70,7 +70,7 @@ Bundled slash commands: `/ticketgraph:tickets-add|status|next|open|done` — see
 
 ## Tool reference
 
-> This table covers the 21 tools registered as of T14. If tools are added in future, update this table.
+> This table covers the 23 tools registered as of T21. If tools are added in future, update this table.
 
 ### Read tools
 
@@ -118,6 +118,7 @@ Bundled slash commands: `/ticketgraph:tickets-add|status|next|open|done` — see
 | Tool | Description |
 |---|---|
 | `tickets.import_json` | Import tickets from a JSON intermediate file. Supports `dry_run` and `force`. |
+| `tickets.export` | Write a drift-labelled markdown snapshot of the project's tickets (default `<root>/.ai/TICKETS.md`), with a generated-at banner naming the DB as the source of truth. **Overwrites** the target. |
 
 For full parameter documentation, see [§6 of the design spec](docs/specs/2026-05-28-ticketgraph-design.md).
 
@@ -125,7 +126,7 @@ For full parameter documentation, see [§6 of the design spec](docs/specs/2026-0
 
 ## Migration
 
-If you have an existing `.ai/TICKETS.md`, ticketgraph can ingest it. The model: the MCP becomes the canonical store; TICKETS.md is migrated once and then deleted. ticketgraph does not regenerate markdown.
+If you have an existing `.ai/TICKETS.md`, ticketgraph can ingest it. The model: the MCP becomes the canonical store; TICKETS.md is migrated once and then deleted. For a read-only view, `tickets.export` can regenerate a `.ai/TICKETS.md` snapshot — but it carries a loud generated-at banner and the DB stays the source of truth (it is never re-ingested).
 
 Built-in parsers ship for demo and sample formats. Other formats need a small parser to the JSON intermediate shape.
 

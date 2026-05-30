@@ -9,11 +9,13 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 
 | Done ✅ | In progress | Open |
 |---|---|---|
-| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19 | _(none)_ | T20 |
+| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T21 | _(none)_ | T20 |
 
 **T1–T18 complete (2026-05-29).** 410 tests across 42 files, deterministically green (verified 12/12 consecutive full-suite runs). 21 MCP tools, demo + sample parsers (both 100% heading parse on the live files), plugin manifest + install docs, README + usage + migration docs, and GitHub Actions CI (ubuntu + macOS).
 
 **T19, T20 (user-requested, 2026-05-29):** batch ticket creation (`tickets.add_many`) and a token-efficiency review of tool response shapes — both motivated by batch-add sessions where N single `tickets.add` calls each echo a full ticket row back.
+
+**T21 (user-requested, 2026-05-30):** `tickets.export` — a timestamp-stamped, banner-labelled `.ai/TICKETS.md` snapshot. Consciously reverses the spec's "no markdown export / TICKETS.md not regenerated" non-goal; the loud generated-at banner is the drift mitigation that earns the reversal.
 
 **T14 (user-requested):** roots-based project resolution — a global server's `process.cwd()` is its spawn dir, not the user's active project, so cwd auto-scoping now resolves from MCP client roots (with cwd fallback).
 
@@ -314,6 +316,31 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 - Measured token deltas on the seeded fixture for each changed tool; existing token-budget acceptance tests stay green (and are tightened where a default got leaner).
 - Existing behaviour/tests for unchanged tools stay green.
 **Notes:** runs the four-stage pipeline. Relates to T19 (batch result shape) — `add_many` should land with the lean shape this review endorses. Effort **3**: the audit is bounded (~21 tools); implementation depends on findings and may be smaller.
+
+### T21 — `tickets.export`: write a timestamp-stamped `.ai/TICKETS.md` snapshot
+**Status:** Done (2026-05-30). **Type:** enhancement. **Effort:** 3.
+**As-built:** `.ai/implementation-plans/2026-05-30-T21-export-markdown.md` (four-stage pipeline; 23 MCP tools; 506 tests green). Pure renderer `src/lib/export-markdown.ts` + DB collector `src/lib/export-collect.ts` + tool `src/tools/export.ts`; writes `<root>/.ai/TICKETS.md` with a generated-at banner, returns compact `{ path, bytes, ticket_count, exported_at }`. Spec non-goal reversed honestly (§3/§6/§11 dated annotations).
+**Requested by:** Ed (2026-05-30) — "an export function which writes out a `.ai/TICKETS.md` dump, clearly labelled as an export at a specific time/date to avoid drift."
+**Reverses a documented non-goal — call this out, don't paper over it.** The design spec deliberately ruled markdown export out: §"no markdown export pipeline" (Non-goals), §"The MCP is the canonical store. TICKETS.md files are not regenerated. They are migrated once at setup and then deleted.", and "Markdown export / TICKETS.md regeneration" sits in the deferred list. A `tickets.dump` is reserved only as a *"debug-only raw row export… token-heavy; not for normal queries."* This ticket consciously changes that stance for the human-readable snapshot case. The plan's **first job** is to record the spec amendment (update the Non-goals + the `tickets.dump` row, or add a "Reversed decisions" note) so the spec and behaviour don't disagree.
+**Why now / the drift mitigation:** the DB is the canonical store, but a glanceable, diffable, git-committable markdown view of a project's tickets is genuinely useful (PR context, offline reading, history). The original objection was *drift* — a regenerated file silently diverging from the DB and being mistaken for the source of truth. The mitigation the request names is the whole point of this ticket: every export carries a loud, unmissable banner stating it is a generated point-in-time snapshot, when it was generated, and that the DB — not the file — is authoritative. Stale ≠ silently-stale.
+**Fidelity caveat (state plainly in the plan and the tool description):** the export renders **only what the DB holds** — id, title, status, type, effort, priority/epic grouping, tags, blockers/relations, timestamps, and the `description` free-text blob verbatim. It does **not** reconstruct the rich hand-authored Scope/Acceptance/Notes structure of *this* very file unless that prose lives in `description`. So a regenerated `TICKETS.md` will look leaner than the current hand-maintained one. That is expected and is itself an argument for the banner.
+**Design decisions to resolve in planning (recommendations noted):**
+- **Tool name.** New `tickets.export` rather than overloading the reserved debug-only `tickets.dump` (different audience: human-readable snapshot vs raw row dump). Recommended: `tickets.export`.
+- **Write-to-disk vs return-string.** The server is DB-only today; writing files is a new capability. Recommended: the tool *writes the file directly* (strongest drift defence — one call regenerates the banner'd file and the model can't forget the label), to `<project-root>/.ai/TICKETS.md` resolved via the existing roots-based resolution (T14), with an optional `path?` override. Returns a compact `{ path, bytes, ticket_count, exported_at }` — not the rendered body. Per the self-operated-tooling preference, fewer Claude-mediated steps = fewer ways to drift.
+- **Scope of export.** Single resolved project (consistent with every other tool's project scoping). Optional status/priority filters are a nice-to-have, not required for v1.
+**Scope:**
+- New MCP tool `tickets.export({ project?, path? })`. Resolves project via roots (T14); default output path `<root>/.ai/TICKETS.md`.
+- Render markdown: a generated-file banner (below), a live status table (Done / In progress / Open), then tickets grouped by priority/epic, each rendering its DB fields + `description` verbatim, with blockers/relations surfaced from the relations table.
+- **Banner (mandatory, top of file):** an HTML comment `<!-- GENERATED BY ticketgraph — DO NOT EDIT BY HAND -->` plus a visible blockquote, e.g. `> **Exported 2026-05-30T14:22:03Z** from the ticketgraph DB (project \`ticketgraph\`, N tickets). The DB is the source of truth; this file is a point-in-time snapshot and *will* drift. Re-run \`tickets.export\` to refresh.` Timestamp is ISO-8601 UTC.
+- Determinism: stable ticket ordering (by priority then id) so re-exports with no DB change produce a byte-identical body *except* the timestamp line — keeps git diffs to the banner when nothing else changed.
+**Acceptance:**
+- `tickets.export` on a seeded project writes `<root>/.ai/TICKETS.md` and returns `{ path, bytes, ticket_count, exported_at }`; the file opens with the `DO NOT EDIT` comment + the timestamped banner naming the project and count.
+- The rendered body contains every ticket in the project, grouped by priority/epic, with status, type, effort, tags, and blockers/relations; `description` is reproduced verbatim.
+- Re-exporting an unchanged DB changes only the timestamp line (deterministic body ordering) — assert via a diff that touches one line.
+- `path?` override writes to the given path; project resolution still flows through roots/cwd (no hardcoded project).
+- The spec is amended in the same PR (Non-goals + `tickets.dump` row updated, or a "Reversed decisions" note added) so spec and behaviour agree — verified by `git diff` touching `docs/specs/`.
+- Existing tool tests stay green; new tests cover banner presence, field rendering, determinism, and path override.
+**Notes:** runs the four-stage pipeline. Distinct from the P3 `tickets.dump` (raw debug JSON) and from the P3 "`tickets.dump` enhancements" bullet — this is the human-readable, drift-labelled markdown snapshot the spec previously declined. Effort **3**: rendering + grouping + first file-write capability + deterministic ordering + the spec amendment.
 
 ---
 

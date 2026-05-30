@@ -50,6 +50,7 @@ import { makeChangedSinceTool } from "./tools/changed_since.js";
 import { makeValidateTool } from "./tools/validate.js";
 import { makeImportJsonTool } from "./tools/import_json.js";
 import { makeAddManyTool } from "./tools/add_many.js";
+import { makeExportTool } from "./tools/export.js";
 import type { AnyTool } from "./tools/types.js";
 
 function makeToolRegistry(deps: {
@@ -81,6 +82,7 @@ function makeToolRegistry(deps: {
     makeChangedSinceTool(db, getClientRoots) as unknown as AnyTool,
     makeValidateTool(db, getClientRoots) as unknown as AnyTool,
     makeImportJsonTool(db, getClientRoots) as unknown as AnyTool,
+    makeExportTool(db, getClientRoots) as unknown as AnyTool,
   ];
   return new Map(tools.map((t) => [t.name, t]));
 }

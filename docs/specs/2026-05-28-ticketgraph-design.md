@@ -23,7 +23,7 @@ The plugin is single-user, single-machine, and used exclusively by Ed in conjunc
 ## 3. Design principles
 
 1. **Every common query response fits in <2k tokens by default.** This is an acceptance criterion, not a hope. `tickets.list`, `tickets.search`, `tickets.stats`, `tickets.changed_since`, `tickets.next` all have summary-by-default shapes. Full descriptions are returned only by `tickets.get` and only for the requested ticket(s).
-2. **The MCP is the canonical store.** TICKETS.md files are not regenerated. They are migrated once at setup and then deleted.
+2. **The MCP is the canonical store.** TICKETS.md files are not regenerated. They are migrated once at setup and then deleted. *→ Superseded 2026-05-30 (T21): regeneration is now supported via `tickets.export`, which writes a `.ai/TICKETS.md` snapshot carrying a loud generated-at banner. The DB remains the canonical store; the exported file is an explicitly drift-labelled, point-in-time view, never a source of truth.*
 3. **One global SQLite DB at `~/.claude/tickets.db`.** Cross-project queries are first-class. Project scoping is automatic from cwd; explicit `project: "<id>"` or `project: "all"` overrides.
 4. **Resist tool sprawl.** Storybloq has 53 MCP tools; we ship with ~20. Every tool is a thing Claude must remember and Ed must maintain.
 5. **YAGNI ruthlessly.** No CLI, no Mac app, no federation, no autonomous-mode state machine, no lessons/handovers/snapshots. Those concerns are handled by other tools Ed already uses (`/handoff`, auto-memory, `/writing-plans`, `/subagent-driven-development`).
@@ -267,6 +267,7 @@ Auto-scoped to current project from cwd; pass `project: "<id>"` to override, `pr
 | `tickets.update_project` | Update a registered project's `display_name` or `root_path` (e.g. when a repo moves). `id` is immutable. |
 | `tickets.import_json` | Bulk import from the unified JSON intermediate format (see §7). Supports `dry_run: true`. Refuses to overwrite existing `(project_id, id)` rows unless `force: true`. |
 | `tickets.dump` | Debug-only raw row export for a project. Token-heavy; not for normal queries. |
+| `tickets.export` | (T21) Render the project's tickets to a human-readable, drift-labelled markdown snapshot (default `<root>/.ai/TICKETS.md`), with a generated-at banner naming the DB as the source of truth. **Overwrites** the target. Distinct from the debug-only `tickets.dump`. |
 
 ### Deliberate omissions
 
@@ -438,7 +439,7 @@ Token costs measured against a populated demo import (~130 tickets, ~30 relation
 ## 11. Out of scope for v1
 
 Listed explicitly so they don't creep in:
-- Markdown export / TICKETS.md regeneration.
+- ~~Markdown export / TICKETS.md regeneration.~~ *→ Moved in-scope 2026-05-30 (T21): delivered as `tickets.export`, an explicitly drift-labelled snapshot (see §3 principle 2). The DB remains canonical.*
 - CLI surface.
 - Vector / semantic search (schema name reserved).
 - Multi-machine sync.
