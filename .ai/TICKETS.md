@@ -9,13 +9,15 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 
 | Done ✅ | In progress | Open |
 |---|---|---|
-| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T21 | _(none)_ | T20 |
+| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T21, T22, T23, T24, T25, T26 | _(none)_ | T20 |
 
 **T1–T18 complete (2026-05-29).** 410 tests across 42 files, deterministically green (verified 12/12 consecutive full-suite runs). 21 MCP tools, demo + sample parsers (both 100% heading parse on the live files), plugin manifest + install docs, README + usage + migration docs, and GitHub Actions CI (ubuntu + macOS).
 
 **T19, T20 (user-requested, 2026-05-29):** batch ticket creation (`tickets.add_many`) and a token-efficiency review of tool response shapes — both motivated by batch-add sessions where N single `tickets.add` calls each echo a full ticket row back.
 
 **T21 (user-requested, 2026-05-30):** `tickets.export` — a timestamp-stamped, banner-labelled `.ai/TICKETS.md` snapshot. Consciously reverses the spec's "no markdown export / TICKETS.md not regenerated" non-goal; the loud generated-at banner is the drift mitigation that earns the reversal.
+
+**T22–T26 (user-requested, 2026-05-31):** a CLI surface so every tool runs **either via MCP or `ticketgraph <command>`** — reversing the spec's "no CLI" YAGNI non-goal (§5, and the P3 "CLI surface" deferral). **Token efficiency is the driver, and the real win is structural:** the MCP injects all 23 tool schemas into *every* connected session (~2–4k tokens of always-on context tax, paid whether or not tickets are touched). A CLI invoked via Bash costs ~0 context until used. The plan therefore makes the **CLI the default and the MCP opt-in** (decision 2026-05-31), keeping always-on cost to a one-line `CLAUDE.md` pointer + on-demand `--help`. Cheap to build because every tool is already a pure `Tool<TArgs,TResult>` (`parseArgs → handle → plain data`); the CLI is a second thin front-end over the same `makeToolRegistry`, not a rewrite. Decisions locked 2026-05-31: **dual-mode single bin** (no args / `--mcp` → stdio server; `ticketgraph <command>` → CLI), **CLI default + MCP opt-in**, **compact-text default output** (`--format json` retained). **Landed 2026-05-31 (v0.4.0):** all five tickets built via the four-stage pipeline (writing-plans → devils-advocate → subagent-driven-development → review-implementation; per-ticket records in `.ai/implementation-plans/2026-05-31-T2[2-6]-*.md`). 628 tests across 55 files, deterministically green; dual-mode verified end-to-end with the MCP off. `.mcp.json` removed (MCP now opt-in — restore + `/reload-plugins` to re-enable); compact output measured ~81% smaller than JSON on multi-row lists.
 
 **T14 (user-requested):** roots-based project resolution — a global server's `process.cwd()` is its spawn dir, not the user's active project, so cwd auto-scoping now resolves from MCP client roots (with cwd fallback).
 
@@ -344,12 +346,107 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 
 ---
 
+## CLI surface (v0.4 — runs either via MCP or CLI)
+
+A second thin front-end over the existing `makeToolRegistry` so every tool is reachable as `ticketgraph <command> [--flags]` as well as over MCP. **Driver: token efficiency.** The MCP's cost is dominated not by per-call results (already <2k by design §3.1) but by the always-on schema tax — all 23 tool definitions injected into every connected session. The CLI removes that for sessions that don't touch tickets, and trims per-call output via a compact default format. Decisions locked with Ed 2026-05-31: dual-mode single bin · CLI default + MCP opt-in · compact-text default.
+
+**Spec amendment is part of this epic (like T21).** §5 lists "No CLI" under YAGNI and §"Non-goals" repeats it; the P3 "CLI surface" bullet deferred it. T22's plan must first amend the spec (Non-goals + §5 + a "Reversed decisions" note) so spec and behaviour agree — verified by `git diff` touching `docs/specs/`.
+
+**Design through-line — optimise for Claude's accuracy, not human ergonomics** (per Ed's standing preference): the CLI is operated mostly by Claude via Bash, so the command/flag surface mirrors the tool surface 1:1 with the *fewest mapping rules to remember*. CLI command = MCP tool name minus the `tickets.` prefix, **underscores preserved** (`ticketgraph add_many`, `ticketgraph register_project`, `ticketgraph set_parent`) — no `_`→`-` prettification that Claude would have to mentally transform. Flag names = `inputSchema` property names verbatim. One rule, no surprises.
+
+### T22 — CLI entrypoint + schema-driven dispatch
+**Status:** Done (2026-05-31). **Type:** feature (foundation for the CLI epic). **Effort:** 5. **As-built:** `.ai/implementation-plans/2026-05-31-T22-cli-entrypoint.md`.
+**Blockers:** none (reuses the existing registry).
+**Why effort 5:** the load-bearing ticket — mode detection, a generic schema-driven flag parser, the structured-input escape hatch, and the dispatch wiring all land here. T23–T25 are refinements on top.
+**Scope:**
+- **Dual-mode bin.** Keep the single `ticketgraph` bin (`dist/server.js`). Mode detection at startup: **no positional args, or `--mcp`** → current stdio MCP server (unchanged path). **First positional arg matches a known command** → CLI path. Anything else (unknown command) → CLI usage error on stderr, exit 2. Mode detection runs *before* the SDK import work, like the existing `--help` gate, so CLI invocations never pay the MCP import cost.
+- **Command resolution.** Build the command set from `makeToolRegistry` by stripping the `tickets.` prefix from each tool name (underscores preserved). `ticketgraph list` → `tickets.list`, `ticketgraph add_many` → `tickets.add_many`. One registry, two front-ends.
+- **Generic flag parser driven by `inputSchema`.** For the resolved tool, walk its `inputSchema.properties` to coerce `argv` into the raw object `parseArgs` expects: `--key value` for string/number; `--key` (presence = `true`) for boolean; repeated `--key v1 --key v2` for array-typed props; `--key all` etc. passed through as-is (the tool's own `parseArgs` validates). Unknown flags → usage error, exit 2. Reuse each tool's existing `parseArgs` for validation — **the CLI adds no second validation layer.**
+- **Structured-input escape hatch.** Flat flags can't express the nested/array inputs of `add_many`, `import_json`, and bulk `link`. Support `--json '<json-string>'` **and** JSON on stdin (when stdin is not a TTY) — the parsed object is handed straight to `parseArgs`, bypassing flag parsing. Document which commands expect this.
+- **Optional single positional for id-like commands** (nice-to-have, recommend including): `ticketgraph get T22` binds the lone positional to the tool's primary id param when the schema has an obvious one; otherwise everything is a flag. Keep the rule mechanical and documented.
+- Dispatch: `parseArgs(raw) → handle(args) → print result` (formatting is T24; for T22 a JSON dump to stdout is the placeholder). DB opened in **write mode** for write commands, **read-only** for read commands (mirrors current behaviour; reuse `openDb`).
+**Acceptance:**
+- `ticketgraph` (no args) and `ticketgraph --mcp` still boot the stdio server; existing MCP integration tests stay green unchanged.
+- `ticketgraph list --status open --limit 5` resolves to `tickets.list`, parses flags, calls `handle`, prints the result; matches the equivalent MCP call's data.
+- `ticketgraph add_many --json '[…]'` and piping the same JSON via stdin both succeed and create the tickets; flag-only invocation of a structured command gives a clear "use --json/stdin" error.
+- Unknown command and unknown flag each exit `2` with a stderr usage message; no stack trace leaks to stdout.
+- Spec amended in the same PR (Non-goals + §5 + Reversed-decisions note); `git diff` touches `docs/specs/`.
+- New tests: mode detection (server vs CLI vs unknown), flag coercion per JSON-schema type, the `--json`/stdin path, prefix-stripping command resolution. Existing suite stays green.
+**Notes:** four-stage pipeline. The mode-detection gate must not regress the orphaned-process shutdown fixes from T18 — CLI invocations are short-lived and must exit cleanly without leaving the SIGKILL-timer / stdin-close machinery armed.
+
+### T23 — CLI project resolution + error & exit-code mapping
+**Status:** Done (2026-05-31). **Type:** feature. **Effort:** 3. **As-built:** `.ai/implementation-plans/2026-05-31-T23-cli-resolution-errors.md`.
+**Blockers:** T22.
+**Scope:**
+- **Project resolution without MCP roots.** The CLI has no `listRoots()`; instead its `process.cwd()` *is* the user's real working dir (unlike the global MCP server, whose cwd is its spawn dir — the whole reason T14 exists). Provide a CLI `GetClientRoots` that returns `[]` so `requireProject` falls through to cwd, plus a git-root walk-up as a second candidate. Explicit `--project <id>` / `--project all` override exactly as in MCP. **No hardcoded project.**
+- **Error mapping.** `McpError` (and any thrown error) from `parseArgs`/`requireProject`/`handle` must become a clean stderr line — *message only, no stack* — and a non-zero exit. Map: `InvalidParams` / `MethodNotFound` / unknown-command / bad-flags → exit `2` (usage/input); all other errors → exit `1`. Success → exit `0`. stdout carries results only; stderr carries diagnostics only (so `ticketgraph … | …` pipes stay clean).
+- Logger currently writes to stderr at info level (stdout reserved for MCP protocol). For CLI, suppress info chatter by default (it would pollute stderr that a human reads); gate behind `TICKETGRAPH_DEBUG` / `--verbose`. Errors still surface.
+**Acceptance:**
+- Run from inside a registered project's dir (no `--project`) → resolves correctly via cwd; run from an unregistered dir → exit `2` with the "register one or pass --project" message; `--project all` on a read command works; `--project all` on a write-only command errors as in MCP.
+- A validation failure (e.g. `update` with a bad status) prints one stderr line and exits `2`; nothing on stdout.
+- `echo $?` reflects the documented 0/1/2 contract across success, validation error, and internal error.
+- Info-level logs do not appear on a normal CLI run; `--verbose`/`TICKETGRAPH_DEBUG` re-enables them.
+- New tests cover cwd resolution, the exit-code matrix, and stdout/stderr separation. Existing suite green.
+**Notes:** four-stage pipeline. Effort 3: mostly reuses `requireProject`; the work is the resolver shim, the error→exit mapping, and log-routing.
+
+### T24 — Output formatting (`--format compact|json|table`, compact default)
+**Status:** Done (2026-05-31). **Type:** feature (the per-call token win). **Effort:** 3. **As-built:** `.ai/implementation-plans/2026-05-31-T24-output-formatting.md` (compact ~81% smaller than JSON on multi-row lists).
+**Blockers:** T22.
+**Scope:**
+- A formatting layer applied to the plain data each tool's `handle` returns. `--format`:
+  - **`compact` (default):** one line per row, space/tab-aligned, columns chosen per result shape (list/search/next → `id status priority type title`; get → a few key lines; stats → terse counts). No repeated JSON keys. This is the token-efficiency default for Claude callers.
+  - **`json`:** the exact object today's MCP returns — for when Claude wants to parse, or for scripting. Stable, unformatted (single line) to stay diffable/greppable.
+  - **`table`:** human-pretty aligned table (boxless), for Ed reading at a terminal.
+- Format selection precedence: `--format` flag › `TICKETGRAPH_FORMAT` env › `compact`. Auto-detect is explicitly **not** done (no TTY-sniffing magic — predictable for Claude).
+- The formatter is generic where possible (keys-as-columns) with small per-result-shape overrides only where compact output needs curation (list rows vs a single `get` vs `stats`). Resist a bespoke formatter per command — YAGNI.
+**Acceptance:**
+- `ticketgraph list` (compact) emits aligned rows with no JSON braces; `--format json` emits the same data as the MCP call; `--format table` emits an aligned human table.
+- Measured: compact output for a seeded `list`/`search` is materially fewer tokens than the JSON shape (record the delta, mirroring T20's methodology).
+- `TICKETGRAPH_FORMAT=json ticketgraph list` honours the env; explicit `--format` overrides it.
+- New tests assert each format's shape for list/get/stats/next; existing suite green.
+**Notes:** four-stage pipeline. Coordinate with T20 — the lean default response shapes T20 endorses are what `compact` renders; don't reintroduce trimmed fields here.
+
+### T25 — Generated `--help` & discoverability
+**Status:** Done (2026-05-31). **Type:** feature (keeps always-on cost to one line). **Effort:** 2. **As-built:** `.ai/implementation-plans/2026-05-31-T25-generated-help.md`.
+**Blockers:** T22.
+**Scope:**
+- `ticketgraph --help` (no command) → top-level help: one line per command (name + the tool's `description`, truncated), plus the `--mcp` note and global flags (`--format`, `--project`, `--json`, `--verbose`). Rendered **from the registry** — never a hand-maintained list that can drift from the tools.
+- `ticketgraph <command> --help` → per-command help generated from that tool's `inputSchema`: each property as a flag with its type, required/optional, and (where present) the schema's constraints; notes the `--json`/stdin path for structured commands.
+- This is the discoverability mechanism that lets the always-on `CLAUDE.md` footprint stay at ~1 line: Claude learns commands on demand via `--help` instead of carrying 23 schemas every session.
+- Reconcile with the **existing** `--help` behaviour in `server.ts` (currently prints the MCP one-liner): top-level `--help` now prints the CLI command index; preserve a path to the version/server blurb (e.g. `--version`).
+**Acceptance:**
+- `ticketgraph --help` lists every registry command with its description and exits `0`; adding a tool to the registry makes it appear with no help-text edit (assert by counting commands against the registry).
+- `ticketgraph get --help` shows `--id`/positional and any flags derived from the schema; structured commands mention `--json`/stdin.
+- `--version` reports the package version; `--help` no longer hides it.
+- New tests render help from a stub registry and assert command/flag coverage. Existing suite green.
+**Notes:** four-stage pipeline. Effort 2: pure rendering from existing metadata.
+
+### T26 — Packaging, docs & MCP-becomes-opt-in
+**Status:** Done (2026-05-31). **Type:** chore/docs (ships the epic). **Effort:** 3. **As-built:** `.ai/implementation-plans/2026-05-31-T26-packaging-mcp-optin.md` (v0.4.0; MCP now opt-in).
+**Blockers:** T22, T23, T24, T25.
+**Scope:**
+- **Make MCP opt-in** so the token win is real (decision 2026-05-31): the plugin no longer auto-connects the MCP server by default. Update `.claude-plugin/plugin.json` / `.mcp.json` accordingly, and document how to turn the MCP back on for users who prefer it. (Confirm the exact mechanism during planning — plugin manifest vs user `claude mcp add`.)
+- **Terse `CLAUDE.md` pointer** (the entire always-on cost): a single line telling Claude the project has token-cheap, DB-backed ticket queries via `ticketgraph <command>` and to run `ticketgraph --help` for the command list. **Do not** inline command docs — that would recreate the schema tax in another file.
+- **Bash allowlist:** add `ticketgraph` read commands (`list`, `get`, `search`, `next`, `stats`, `changed_since`, `blockers_of`, `children_of`, `related`, `validate`) to project `.claude/settings.json` so routine queries don't prompt. Write commands stay prompt-gated.
+- **Slash commands:** the bundled `commands/tickets-*.md` (T15) currently invoke MCP tools — repoint them at the CLI (or leave them MCP-driven and document both). Decide in planning; recommend CLI so they work with MCP off.
+- **Docs:** `README.md` + `docs/usage.md` gain a CLI section (install, dual-mode, the format flags, the `--json`/stdin convention, exit codes). `docs/install.md` notes MCP is now opt-in.
+- Version bump to **0.4.0**; CHANGELOG/commit notes the CLI surface and the MCP-default change (the latter is the one behaviour change existing users will notice).
+**Acceptance:**
+- Fresh install exposes `ticketgraph <command>` working with the MCP **not** auto-connected; re-enabling the MCP via the documented path restores tool access.
+- `CLAUDE.md` pointer is ≤2 lines and contains no per-command schema; `--help` is the discovery path.
+- Allowlisted read commands run without a permission prompt in a test session; write commands still prompt.
+- Slash commands work in the default (MCP-off) configuration.
+- README/usage/install updated; `npm run build` + full suite green; version is 0.4.0.
+**Notes:** four-stage pipeline. This ticket is where "token efficiency is the driver" actually pays out — everything before it is plumbing; making MCP opt-in + a one-line pointer is what removes the always-on tax.
+
+---
+
 ## P3 — Post-MVP polish (still deferred)
 
 - **`tickets.dump` enhancements** — pagination, JSON-streaming for large projects.
 - **Vector embedding sidecar** — opt-in `tickets_vec` table, local model via Ollama or hosted endpoint. Schema already reserves the name.
 - **Audit log retention** — `tickets.audit.purge_before` once row counts justify it (10k+).
-- **CLI surface** — only if Ed wants out-of-Claude access. Currently no requirement.
+- ~~**CLI surface** — only if Ed wants out-of-Claude access. Currently no requirement.~~ **Reversed 2026-05-31 → now T22–T26 (CLI surface, v0.4).** Motivation turned out not to be out-of-Claude access but token efficiency: the CLI lets a session pay ~0 context until a ticket query is actually made, vs the MCP's always-on schema tax. See the CLI surface section above.
 - **Cross-project relations** — link from demo's `T120` to sample's `FEAT-04`? Probably not, but the schema doesn't preclude it.
 
 ---

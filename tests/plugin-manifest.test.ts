@@ -1,8 +1,12 @@
 /**
  * Plugin manifest validation tests.
  *
- * Validates the shape of .claude-plugin/plugin.json and .mcp.json.
+ * Validates the shape of .claude-plugin/plugin.json and package.json.
  * Pure JSON-shape tests — no claude CLI calls, safe to run in CI.
+ *
+ * Note: .mcp.json is intentionally absent from the repo as of v0.4.0 —
+ * the MCP server is opt-in. Its exact content is documented in
+ * docs/install.md under "Enabling the MCP server (optional)".
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
@@ -14,10 +18,6 @@ const ROOT = resolve(__dirname, "..");
 
 const pluginJson = JSON.parse(
   readFileSync(resolve(ROOT, ".claude-plugin/plugin.json"), "utf8")
-) as Record<string, unknown>;
-
-const mcpJson = JSON.parse(
-  readFileSync(resolve(ROOT, ".mcp.json"), "utf8")
 ) as Record<string, unknown>;
 
 const packageJson = JSON.parse(
@@ -44,24 +44,11 @@ describe(".claude-plugin/plugin.json", () => {
   });
 });
 
-describe(".mcp.json", () => {
-  it("is valid JSON with a mcpServers.ticketgraph entry", () => {
-    const servers = mcpJson["mcpServers"] as Record<string, unknown>;
-    expect(servers).toBeDefined();
-    expect(servers["ticketgraph"]).toBeDefined();
-  });
-
-  it('command is "node"', () => {
-    const servers = mcpJson["mcpServers"] as Record<string, unknown>;
-    const entry = servers["ticketgraph"] as Record<string, unknown>;
-    expect(entry["command"]).toBe("node");
-  });
-
-  it('args includes a string containing "${CLAUDE_PLUGIN_ROOT}/dist/server.js"', () => {
-    const servers = mcpJson["mcpServers"] as Record<string, unknown>;
-    const entry = servers["ticketgraph"] as Record<string, unknown>;
-    const args = entry["args"] as string[];
-    expect(Array.isArray(args)).toBe(true);
-    expect(args.some((a) => a.includes("${CLAUDE_PLUGIN_ROOT}/dist/server.js"))).toBe(true);
+describe("MCP server opt-in documentation", () => {
+  it("docs/install.md documents the .mcp.json content and re-enable steps", () => {
+    const installMd = readFileSync(resolve(ROOT, "docs/install.md"), "utf8");
+    expect(installMd).toContain("${CLAUDE_PLUGIN_ROOT}/dist/server.js");
+    expect(installMd).toContain("mcpServers");
+    expect(installMd).toContain("/reload-plugins");
   });
 });

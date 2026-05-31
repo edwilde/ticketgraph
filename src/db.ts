@@ -50,6 +50,10 @@ export function openDb(options: OpenDbOptions = {}): OpenDbResult {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.pragma("synchronous = NORMAL");
+  // Dual-mode (CLI + live MCP server) means concurrent writers share one WAL DB.
+  // A 5s busy_timeout lets a contended write wait for the lock instead of throwing
+  // SQLITE_BUSY at 0ms. Set explicitly so we don't rely on the driver's default.
+  db.pragma("busy_timeout = 5000");
 
   if (options.readonly) {
     // In read-only mode, refuse to serve a stale database.

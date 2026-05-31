@@ -1,0 +1,1 @@
+Token-cheap ticket queries via `ticketgraph <command>` (read: list, get, search, next, stats, changed_since, blockers_of, children_of, related, validate, ping; `ticketgraph --help` for all flags). Prefer this over reading `.ai/TICKETS.md`. Use `--format json` to parse output. MCP server is opt-in (see docs/install.md).

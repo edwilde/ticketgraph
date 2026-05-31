@@ -26,7 +26,7 @@ The plugin is single-user, single-machine, and used exclusively by Ed in conjunc
 2. **The MCP is the canonical store.** TICKETS.md files are not regenerated. They are migrated once at setup and then deleted. *→ Superseded 2026-05-30 (T21): regeneration is now supported via `tickets.export`, which writes a `.ai/TICKETS.md` snapshot carrying a loud generated-at banner. The DB remains the canonical store; the exported file is an explicitly drift-labelled, point-in-time view, never a source of truth.*
 3. **One global SQLite DB at `~/.claude/tickets.db`.** Cross-project queries are first-class. Project scoping is automatic from cwd; explicit `project: "<id>"` or `project: "all"` overrides.
 4. **Resist tool sprawl.** Storybloq has 53 MCP tools; we ship with ~20. Every tool is a thing Claude must remember and Ed must maintain.
-5. **YAGNI ruthlessly.** No CLI, no Mac app, no federation, no autonomous-mode state machine, no lessons/handovers/snapshots. Those concerns are handled by other tools Ed already uses (`/handoff`, auto-memory, `/writing-plans`, `/subagent-driven-development`).
+5. **YAGNI ruthlessly.** No CLI, no Mac app, no federation, no autonomous-mode state machine, no lessons/handovers/snapshots. Those concerns are handled by other tools Ed already uses (`/handoff`, auto-memory, `/writing-plans`, `/subagent-driven-development`). *→ "No CLI" superseded 2026-05-31 (T22–T26): a dual-mode CLI is now in scope, driven by token efficiency — the MCP injects all ~23 tool schemas into every connected session (~2–4k tokens of always-on context tax), whereas `ticketgraph <command>` invoked via Bash costs ~0 context until used. The CLI becomes the default and the MCP becomes opt-in (T26). The other YAGNI omissions stand.*
 
 ## 4. Architecture
 
@@ -273,7 +273,7 @@ Auto-scoped to current project from cwd; pass `project: "<id>"` to override, `pr
 
 - **No `tickets.delete`.** Status `deferred` covers abandonment; deletes aren't reversible.
 - **No bulk-update tool.** Iteration keeps the audit log per-ticket and avoids footguns.
-- **No CLI, no daemon, no watcher, no Mac app.** YAGNI for single-user.
+- **No CLI, no daemon, no watcher, no Mac app.** YAGNI for single-user. *→ "No CLI" reversed 2026-05-31 (T22–T26): a dual-mode `ticketgraph <command>` CLI shares the same tool registry as the MCP (see §3 principle 5 and §11). No daemon/watcher/Mac app — those stand.*
 - **No embedding/vector tools.** Schema-reserved name only; can be added later without breaking the API.
 
 ## 7. Migration
@@ -440,7 +440,7 @@ Token costs measured against a populated demo import (~130 tickets, ~30 relation
 
 Listed explicitly so they don't creep in:
 - ~~Markdown export / TICKETS.md regeneration.~~ *→ Moved in-scope 2026-05-30 (T21): delivered as `tickets.export`, an explicitly drift-labelled snapshot (see §3 principle 2). The DB remains canonical.*
-- CLI surface.
+- ~~CLI surface.~~ *→ Moved in-scope 2026-05-31 (T22–T26): delivered as a dual-mode `ticketgraph <command>` front-end over the same tool registry the MCP uses. Driven by token efficiency (CLI costs ~0 context until used vs the MCP's always-on schema tax); the MCP becomes opt-in. See §3 principle 5.*
 - Vector / semantic search (schema name reserved).
 - Multi-machine sync.
 - Teammate-facing read access.

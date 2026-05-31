@@ -1,6 +1,48 @@
 # ticketgraph — Usage examples
 
-These examples show the natural-language prompts you give Claude and the MCP tool calls it makes in response. Every call listed here matches a real tool signature — cross-checked against `src/tools/`.
+These examples show the natural-language prompts you give Claude and the tool calls it makes in response. Every call listed here matches a real tool signature — cross-checked against `src/tools/`.
+
+---
+
+## CLI
+
+As of v0.4.0 ticketgraph ships a dual-mode binary: no arguments / `--mcp` starts the MCP stdio server; `ticketgraph <command> [--flags]` runs a single command and exits.
+
+```sh
+ticketgraph list                       # open/in_progress/blocked tickets (compact)
+ticketgraph list --status done         # filter by status
+ticketgraph get T7                     # full ticket detail
+ticketgraph search --q "auth"          # FTS5 search
+ticketgraph next                       # highest-priority unblocked ticket
+ticketgraph stats                      # counts + point totals
+ticketgraph --help                     # all commands
+ticketgraph list --help                # per-command flags
+```
+
+**Output formats:** `--format compact` (default, human-readable), `--format json` (machine-readable, use to parse), `--format table`.
+
+**Structured input:** `--json '<obj>'` passes the full args object directly (required for `add_many`); `--json -` reads JSON from stdin.
+
+**Project resolution:** `--project <id>` overrides; omit to resolve from cwd; `--project all` on read commands queries across all projects.
+
+**Verbosity:** `--verbose` / `TICKETGRAPH_DEBUG=1` enables INFO logging to stderr.
+
+**Exit codes:** 0 success, 1 runtime error, 2 usage/input error.
+
+**If not globally installed**, use the PATH-independent form:
+```sh
+node /absolute/path/to/ticketgraph/dist/server.js <command> [--flags]
+# or with ${CLAUDE_PLUGIN_ROOT} available (slash commands):
+node ${CLAUDE_PLUGIN_ROOT}/dist/server.js <command> [--flags]
+```
+
+### Recommended CLAUDE.md snippet for downstream users
+
+Add one line to your project's `CLAUDE.md` to enable token-cheap ticket queries in any Claude Code session:
+
+```
+Token-cheap ticket queries via `ticketgraph <command>` (read: list, get, search, next, stats, changed_since, blockers_of, children_of, related, validate, ping; `ticketgraph --help` for all flags). Prefer this over reading `.ai/TICKETS.md`. Use `--format json` to parse output. MCP server is opt-in (see docs/install.md).
+```
 
 ---
 
@@ -20,13 +62,13 @@ For the resolution algorithm detail, see §4 of the [design spec](specs/2026-05-
 
 Five slash commands are bundled with the plugin for the high-frequency loop. They surface as `/ticketgraph:<name>` in the Claude Code command menu after plugin load (run `/reload-plugins` in dev, or restart Claude Code after install).
 
-| Command | What it does | Underlying MCP tool |
+| Command | What it does | CLI command |
 |---|---|---|
-| `/ticketgraph:tickets-add [title]` | Create a new ticket | `tickets.add` |
-| `/ticketgraph:tickets-status` | Show counts and point totals for the current project | `tickets.stats` |
-| `/ticketgraph:tickets-next` | Recommended next ticket to work on (highest-priority, no open blockers) | `tickets.next` |
-| `/ticketgraph:tickets-open` | List all open, in-progress, and blocked tickets | `tickets.list` |
-| `/ticketgraph:tickets-done [id]` | Mark a ticket as done | `tickets.update` |
+| `/ticketgraph:tickets-add [title]` | Create a new ticket | `ticketgraph add --title "…"` |
+| `/ticketgraph:tickets-status` | Show counts and point totals for the current project | `ticketgraph stats` |
+| `/ticketgraph:tickets-next` | Recommended next ticket to work on (highest-priority, no open blockers) | `ticketgraph next` |
+| `/ticketgraph:tickets-open` | List all open, in-progress, and blocked tickets | `ticketgraph list` |
+| `/ticketgraph:tickets-done [id]` | Mark a ticket as done | `ticketgraph update --json '{"id":"…","patch":{"status":"done"}}'` |
 
 **Activation:** after install or `/reload-plugins`, verify with `/ticketgraph:tickets-status` — it should return the current project's stats.
 

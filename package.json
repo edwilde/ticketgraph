@@ -1,7 +1,7 @@
 {
   "name": "@edwilde/ticketgraph",
-  "version": "0.3.0",
-  "description": "MCP server backing the ticketgraph plugin — token-efficient ticket queries over SQLite.",
+  "version": "0.4.0",
+  "description": "Token-efficient ticket queries over SQLite — CLI (ticketgraph) + opt-in MCP server.",
   "type": "module",
   "private": false,
   "main": "./dist/server.js",

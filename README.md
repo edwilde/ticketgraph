@@ -16,9 +16,11 @@ ticketgraph makes every common ticket query cost hundreds of tokens, not tens of
 
 ## What it is
 
-A Claude Code plugin that exposes ~23 MCP tools over one global SQLite database at `~/.claude/tickets.db`. You ask Claude natural-language questions; Claude calls the right tool; the answer comes back lean.
+A Claude Code plugin that provides token-efficient ticket queries over one global SQLite database at `~/.claude/tickets.db`. As of v0.4.0, the primary interface is the CLI — `ticketgraph <command>` — which works with zero MCP overhead. The MCP server (23 tools) is still available but is now **opt-in**.
 
 Single-user. Single-machine. No web service, no telemetry, no external APIs.
+
+> **v0.4.0 change:** The MCP server no longer auto-connects when the plugin loads. A fresh Claude Code session pays ~0 context until a query is made. To re-enable the MCP server, see [docs/install.md — Enabling the MCP server](docs/install.md#enabling-the-mcp-server-optional).
 
 ---
 
@@ -49,6 +51,34 @@ ticketgraph automatically resolves the active project from your current workspac
 - **Pass `project: "all"`** — cross-project reads (supported on `tickets.list`, `tickets.search`, `tickets.stats`).
 
 If no registered project matches your workspace, the tool returns a structured error pointing you at `tickets.register_project`.
+
+---
+
+## CLI
+
+As of v0.4.0 ticketgraph ships a dual-mode binary: no arguments / `--mcp` starts the MCP stdio server; `ticketgraph <command> [--flags]` runs a single command and exits.
+
+```sh
+ticketgraph list                       # open/in_progress/blocked tickets (compact)
+ticketgraph get T7                     # full ticket detail
+ticketgraph search --q "auth"          # FTS5 full-text search
+ticketgraph next                       # highest-priority unblocked ticket
+ticketgraph stats                      # counts + point totals
+ticketgraph --help                     # all commands and global flags
+ticketgraph list --help                # per-command flags
+```
+
+**Output formats:** `--format compact` (default), `--format json` (machine-readable), `--format table`.
+
+**Structured input:** `--json '<obj>'` passes the full args object directly (required for `add_many`); `--json -` reads from stdin.
+
+**Project resolution:** `--project <id>` overrides; omit to resolve from cwd; `--project all` on read commands queries across all projects.
+
+**Verbosity / debug:** `--verbose` or `TICKETGRAPH_DEBUG=1`.
+
+**Exit codes:** 0 success, 1 runtime error, 2 usage/input error.
+
+For full CLI documentation and the recommended one-line `CLAUDE.md` snippet for downstream users, see [docs/usage.md](docs/usage.md#cli).
 
 ---
 

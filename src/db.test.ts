@@ -139,6 +139,21 @@ describe("openDb / migrations runner", () => {
     expect(synchronous).toBe(1); // 1 = NORMAL
   });
 
+  it("busy_timeout is set to 5000ms (lets a contended write wait, not throw SQLITE_BUSY)", () => {
+    const dir = makeTmpDir();
+    const dbPath = join(dir, "test.db");
+
+    const { db } = openDb({ path: dbPath });
+    const busyTimeout = db.pragma("busy_timeout", { simple: true }) as number;
+    db.close();
+
+    // NB: 5000 is also better-sqlite3's own default, so this locks the intended
+    // value/contract — it does NOT prove openDb sets it deliberately (the line
+    // could be removed and this would still pass). The explicit PRAGMA in db.ts
+    // is kept for self-documentation and independence from driver defaults.
+    expect(busyTimeout).toBe(5000);
+  });
+
   it("half-init DB (version=1, no tables) on write path throws integrity error", () => {
     const dir = makeTmpDir();
     const dbPath = join(dir, "half-init.db");

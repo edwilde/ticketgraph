@@ -52,17 +52,57 @@ These steps bring you from `git clone` to a working `tickets.ping` call.
 
 ---
 
+## Global CLI install
+
+Once the package is published to npm (planned), you can install the `ticketgraph` binary globally:
+
+```sh
+npm install -g @edwilde/ticketgraph
+# or run without installing:
+npx @edwilde/ticketgraph list
+```
+
+Until then, use the dev install above and invoke via `node /absolute/path/to/ticketgraph/dist/server.js <command>`, or add `ticketgraph/dist/` to your PATH.
+
+---
+
 ## Plugin install (dev mode)
 
-When Claude Code loads ticketgraph **as a plugin**, the MCP server declared in `.mcp.json` **auto-starts** — you do not need to run `claude mcp add` or `npm run setup`. Use this route when iterating on the plugin itself.
+When Claude Code loads ticketgraph **as a plugin**, the slash commands and `CLAUDE.md` pointer are active, but the MCP server is **opt-in** (see below). Use this route when iterating on the plugin itself.
 
 ```sh
 claude --plugin-dir /absolute/path/to/ticketgraph
 ```
 
-After editing `.claude-plugin/plugin.json` or `.mcp.json`, run `/reload-plugins` inside the session to pick up changes without restarting.
+After editing `.claude-plugin/plugin.json`, run `/reload-plugins` inside the session to pick up changes without restarting.
 
 > **Note:** Do not double-register. If you used `npm run setup` (direct MCP registration) and also launch with `--plugin-dir`, the server will be registered twice. Use one route at a time.
+
+---
+
+## Enabling the MCP server (optional)
+
+As of v0.4.0 the MCP server is **opt-in**. The CLI (`ticketgraph <command>` / `node dist/server.js <command>`) works without it and is the default path for slash commands and the `CLAUDE.md` pointer. The MCP server is useful when you want direct tool calls from Claude without running shell commands.
+
+To enable it, restore `.mcp.json` in the plugin root with the following content:
+
+```json
+{
+  "mcpServers": {
+    "ticketgraph": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/server.js"]
+    }
+  }
+}
+```
+
+Then run `/reload-plugins` (or restart Claude Code). The binary also starts the MCP server when invoked with no arguments or with `--mcp`:
+
+```sh
+node dist/server.js --mcp   # explicit MCP stdio server
+node dist/server.js         # same — no-args also starts MCP
+```
 
 ---
 
@@ -90,17 +130,14 @@ claude mcp add --transport stdio -s user ticketgraph -- node /new/path/dist/serv
 
 ## Future public install (planned, not yet available)
 
-Once published to npm and the Claude Code marketplace, installation will be:
+Once published to the Claude Code marketplace, installation will be:
 
 ```sh
-# npm (planned)
-npm install -g @edwilde/ticketgraph
-
 # Claude Code marketplace (planned)
 claude plugin install ticketgraph
 ```
 
-These routes are not yet available. Use the dev install above.
+npm global install is described above. The marketplace route is not yet available.
 
 ---
 
@@ -122,7 +159,7 @@ claude mcp get ticketgraph
 
 Inside a Claude Code session:
 - `/mcp` — shows all connected servers; `ticketgraph` should appear as connected.
-- Call tool `tickets.ping` — returns `{ ok: true, version: "0.1.0", db_path: "...", schema_version: 1 }`.
+- Call tool `tickets.ping` — returns `{ ok: true, version: "0.4.0", db_path: "...", schema_version: 1 }`.
 
 ---
 
