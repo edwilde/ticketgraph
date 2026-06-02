@@ -5,7 +5,17 @@ import { tmpdir } from "node:os";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { openDb } from "../db.js";
 import { makeAddTool } from "./add.js";
-import { makeAppendToDescriptionTool } from "./append_to_description.js";
+import {
+  makeAppendToDescriptionTool,
+  type AppendToDescriptionResult,
+  type AppendToDescriptionResultLean,
+} from "./append_to_description.js";
+
+/** Narrow an append result to the lean shape (fails the test otherwise). */
+function asLean(result: AppendToDescriptionResult): AppendToDescriptionResultLean {
+  if ("ticket" in result) throw new Error("expected lean result, got full");
+  return result;
+}
 
 const tmpDirs: string[] = [];
 
@@ -33,7 +43,11 @@ function setup() {
   const appendTool = makeAppendToDescriptionTool(db);
 
   async function addTicket(title = "Test ticket", extra: Record<string, unknown> = {}) {
-    return addTool.handle(addTool.parseArgs({ project: "proj1", title, ...extra }));
+    const r = await addTool.handle(
+      addTool.parseArgs({ project: "proj1", title, full: true, ...extra }),
+    );
+    if (!("ticket" in r)) throw new Error("expected full add result");
+    return r;
   }
 
   function auditRows(ticketId: string) {
@@ -61,7 +75,24 @@ describe("tickets.append_to_description", () => {
       appendTool.parseArgs({ project: "proj1", id: ticket.id, text: "first chunk" }),
     );
 
-    expect(result.ticket.description).toBe("first chunk");
+    // Lean default: flat { id, description }, no full ticket row.
+    expect("ticket" in result).toBe(false);
+    expect(asLean(result).id).toBe(ticket.id);
+    expect(asLean(result).description).toBe("first chunk");
+    db.close();
+  });
+
+  it("full:true → returns the unchanged full ticket row", async () => {
+    const { db, addTicket, appendTool } = setup();
+    const { ticket } = await addTicket("T1", { description: "original body" });
+
+    const result = await appendTool.handle(
+      appendTool.parseArgs({ project: "proj1", id: ticket.id, text: "appended chunk", full: true }),
+    );
+
+    if (!("ticket" in result)) throw new Error("expected full result");
+    expect(result.ticket.description).toBe("original body\n\nappended chunk");
+    expect(result.ticket.project_id).toBe("proj1");
     db.close();
   });
 
@@ -73,7 +104,7 @@ describe("tickets.append_to_description", () => {
       appendTool.parseArgs({ project: "proj1", id: ticket.id, text: "appended chunk" }),
     );
 
-    expect(result.ticket.description).toBe("original body\n\nappended chunk");
+    expect(asLean(result).description).toBe("original body\n\nappended chunk");
     db.close();
   });
 
@@ -90,7 +121,7 @@ describe("tickets.append_to_description", () => {
       }),
     );
 
-    expect(result.ticket.description).toBe("part one\n---\npart two");
+    expect(asLean(result).description).toBe("part one\n---\npart two");
     db.close();
   });
 
@@ -140,6 +171,20 @@ describe("tickets.append_to_description", () => {
     expect(() =>
       appendTool.parseArgs({ project: "proj1", id: ticket.id, text: "" }),
     ).toThrow(McpError);
+    db.close();
+  });
+
+  it("token budget: lean default result < 16 × 4 bytes", async () => {
+    // Lean default append returns { id, description } (~54 bytes measured with a
+    // short merged description). Threshold set just above with headroom; guards
+    // re-inflation of the default write-tool return.
+    const { db, addTicket, appendTool } = setup();
+    const { ticket } = await addTicket("T1", { description: "original body" });
+    const result = await appendTool.handle(
+      appendTool.parseArgs({ project: "proj1", id: ticket.id, text: "more text" }),
+    );
+    const bytes = Buffer.byteLength(JSON.stringify(result), "utf8");
+    expect(bytes).toBeLessThan(16 * 4);
     db.close();
   });
 

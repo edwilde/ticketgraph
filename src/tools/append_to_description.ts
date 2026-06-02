@@ -11,6 +11,7 @@ export interface AppendToDescriptionArgs {
   id: string;
   text: string;
   separator?: string;
+  full?: boolean;
 }
 
 interface TicketRow {
@@ -29,9 +30,20 @@ interface TicketRow {
   closed_at: string | null;
 }
 
-export interface AppendToDescriptionResult {
+/** Lean default return: id plus the resulting concatenated description. */
+export interface AppendToDescriptionResultLean {
+  id: string;
+  description: string;
+}
+
+/** Full opt-in return: the complete ticket row (back-compat shape). */
+export interface AppendToDescriptionResultFull {
   ticket: TicketRow;
 }
+
+export type AppendToDescriptionResult =
+  | AppendToDescriptionResultLean
+  | AppendToDescriptionResultFull;
 
 export function makeAppendToDescriptionTool(
   db: Database.Database,
@@ -52,6 +64,7 @@ export function makeAppendToDescriptionTool(
           type: "string",
           description: "Separator inserted between old description and new text. Default: \\n\\n.",
         },
+        full: { type: "boolean", description: "Return the full ticket row instead of the lean default." },
       },
       required: ["id", "text"],
       additionalProperties: false,
@@ -83,6 +96,7 @@ export function makeAppendToDescriptionTool(
         id,
         text,
         separator: typeof separator === "string" ? separator : undefined,
+        full: r["full"] === true,
       };
     },
 
@@ -129,7 +143,10 @@ export function makeAppendToDescriptionTool(
         .prepare("SELECT * FROM tickets WHERE project_id = ? AND id = ?")
         .get(projectId, ticketId) as TicketRow;
 
-      return { ticket: updated };
+      if (args.full) {
+        return { ticket: updated };
+      }
+      return { id: updated.id, description: updated.description };
     },
   };
 }

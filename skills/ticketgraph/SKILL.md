@@ -38,6 +38,12 @@ If `ticketgraph` is not on PATH, it isn't set up here — fall back to whatever 
 
 Mutating commands (`add`, `add_many`, `update`, `link`, `unlink`, `set_parent`, `append_to_description`, `add_tag`, `remove_tag`, `import_json`, `export`) exist too. Each change writes an audit entry. Confirm exact flags with `<command> --help` before running — e.g. `ticketgraph add --title "..." --type bug`, `ticketgraph update T5 --status done`. Use `add_many` to create many tickets in one transaction via `--json '<obj>'` (or `--json -` for stdin).
 
+## Lean by default (cheaper output)
+
+Write tools return only the data you can't reconstruct — they do **not** echo the whole ticket row back. `add` → `{ id, status, created_at }`; `update` → `{ id, changed, closed_at?, audit_entries }`; `set_parent` → `{ id, parent_id, changed }`; `append_to_description` → `{ id, description }`. This is the cheap path — keep it. Only add `--full` when you genuinely need the complete row back in the same call (rare; you usually just sent those fields).
+
+`get` returns the full ticket plus tags and relations by default, but **omits audit history** to stay cheap. Add `--include_audit` only when you actually need the recent audit entries.
+
 ## Key flags (global)
 
 - `--format json` — machine-readable output. **Use this whenever you will parse the result.** Default is `compact` (terse, for skimming); `table` is for human display.

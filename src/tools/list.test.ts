@@ -258,4 +258,31 @@ describe("tickets.list", () => {
     const bytes = Buffer.byteLength(JSON.stringify(result), "utf8");
     expect(bytes).toBeLessThan(1500 * 4);
   });
+
+  it("token budget: default page (30 open tickets, no include_description) < 1850 × 4 bytes", async () => {
+    // The most common multi-row call: a default list (no limit, no description)
+    // over a realistic open backlog. 30 rows measured ~6111 bytes; threshold set
+    // just above with headroom. Guards the default summary row shape.
+    const { db, tool } = setup();
+    for (let i = 1; i <= 30; i++) {
+      db.prepare(
+        `INSERT INTO tickets (id, project_id, title, description, status, priority, type, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        `T${i}`,
+        "proj1",
+        `Fix issue ${i}`,
+        "",
+        "open",
+        i % 4 === 0 ? "P0" : i % 3 === 0 ? "P1" : null,
+        "task",
+        "2026-01-01T00:00:00.000Z",
+      );
+    }
+
+    const result = await tool.handle(tool.parseArgs({ project: "proj1" }));
+    expect(result.rows).toHaveLength(30);
+    const bytes = Buffer.byteLength(JSON.stringify(result), "utf8");
+    expect(bytes).toBeLessThan(1850 * 4);
+  });
 });

@@ -8,6 +8,7 @@ export interface GetArgs {
   project?: string;
   id?: string;
   ids?: string[];
+  include_audit?: boolean;
 }
 
 interface AuditEntry {
@@ -43,7 +44,7 @@ interface TicketFull {
     outgoing: Record<string, Array<{ id: string; note: string | null }>>;
     incoming: Record<string, Array<{ id: string; note: string | null }>>;
   };
-  recent_audit: AuditEntry[];
+  recent_audit?: AuditEntry[];
 }
 
 export type GetResult =
@@ -54,14 +55,19 @@ export function makeGetTool(db: Database.Database, getClientRoots: GetClientRoot
   return {
     name: "tickets.get",
     description:
-      "Get one or more full tickets including tags, relations, and last 10 audit entries. " +
-      "Pass id for a single ticket, or ids (array, max 10) for multiple.",
+      "Get one or more full tickets including tags and relations. " +
+      "Pass id for a single ticket, or ids (array, max 10) for multiple. " +
+      "Recent audit history is opt-in via include_audit.",
     inputSchema: {
       type: "object",
       properties: {
         project: { type: "string" },
         id: { type: "string" },
         ids: { type: "array", items: { type: "string" }, maxItems: 10 },
+        include_audit: {
+          type: "boolean",
+          description: "Include each ticket's recent audit history (last 10 entries). Off by default.",
+        },
       },
       additionalProperties: false,
     },
@@ -95,6 +101,7 @@ export function makeGetTool(db: Database.Database, getClientRoots: GetClientRoot
         project: typeof r["project"] === "string" ? r["project"] : undefined,
         id: typeof id === "string" ? id : undefined,
         ids: Array.isArray(ids) ? (ids as string[]) : undefined,
+        include_audit: r["include_audit"] === true,
       };
     },
 
@@ -107,7 +114,7 @@ export function makeGetTool(db: Database.Database, getClientRoots: GetClientRoot
       const lookupIds = isBatch ? args.ids! : [args.id!];
 
       const results: Array<TicketFull | null> = lookupIds.map((ticketId) =>
-        fetchTicket(db, projectId, ticketId),
+        fetchTicket(db, projectId, ticketId, args.include_audit === true),
       );
 
       if (isBatch) {
@@ -131,6 +138,7 @@ function fetchTicket(
   db: Database.Database,
   projectId: string,
   ticketId: string,
+  includeAudit: boolean,
 ): TicketFull | null {
   const row = db
     .prepare("SELECT * FROM tickets WHERE project_id = ? AND id = ?")
@@ -164,14 +172,7 @@ function fetchTicket(
     }
   }
 
-  // Recent audit (last 10, descending).
-  const auditRows = db
-    .prepare(
-      "SELECT field, old_value, new_value, changed_at FROM audit_log WHERE project_id = ? AND ticket_id = ? ORDER BY changed_at DESC LIMIT 10",
-    )
-    .all(projectId, ticketId) as AuditEntry[];
-
-  return {
+  const ticket: TicketFull = {
     id: row["id"] as string,
     project_id: row["project_id"] as string,
     title: row["title"] as string,
@@ -187,6 +188,16 @@ function fetchTicket(
     closed_at: (row["closed_at"] as string | null) ?? null,
     tags,
     relations: { outgoing, incoming },
-    recent_audit: auditRows,
   };
+
+  // Recent audit (last 10, descending) — opt-in; skip the query when not requested.
+  if (includeAudit) {
+    ticket.recent_audit = db
+      .prepare(
+        "SELECT field, old_value, new_value, changed_at FROM audit_log WHERE project_id = ? AND ticket_id = ? ORDER BY changed_at DESC LIMIT 10",
+      )
+      .all(projectId, ticketId) as AuditEntry[];
+  }
+
+  return ticket;
 }

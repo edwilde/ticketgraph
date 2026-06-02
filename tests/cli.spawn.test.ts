@@ -204,23 +204,25 @@ describe("CLI spawn integration (dist/server.js)", () => {
 
   // Acceptance 5: `add --format json` → exit 0, creates a ticket (JSON payload
   // on stdout). --format json keeps the data assertion meaningful.
-  it("add --format json --project cli_spawn --title X → exit 0, returns the created ticket id", { timeout: 5000 }, async () => {
+  it("add --format json --project cli_spawn --title X → exit 0, returns the lean created id", { timeout: 5000 }, async () => {
     seedProject();
     const r = await runCliSpawn(["add", "--format", "json", "--project", "cli_spawn", "--title", "X"]);
 
     expect(r.code).toBe(0);
     expectNoErrorOnStderr(r.stderr);
-    const parsed = JSON.parse(r.stdout) as { ticket: { id: string; title: string } };
-    expect(parsed.ticket.title).toBe("X");
-    expect(typeof parsed.ticket.id).toBe("string");
-    expect(parsed.ticket.id.length).toBeGreaterThan(0);
+    // Lean default: flat { id, status, created_at } — no full ticket row.
+    const parsed = JSON.parse(r.stdout) as { id: string; status: string; created_at: string };
+    expect("ticket" in parsed).toBe(false);
+    expect(parsed.status).toBe("open");
+    expect(typeof parsed.id).toBe("string");
+    expect(parsed.id.length).toBeGreaterThan(0);
   });
 
-  // Acceptance 5b: `add` with the DEFAULT compact format renders a single
+  // Acceptance 5b: `add --full` with the DEFAULT compact format renders a single
   // ticket-row line carrying the title (no JSON braces).
-  it("add --project cli_spawn --title X (default compact) → exit 0, single ticket-row line", { timeout: 5000 }, async () => {
+  it("add --full --project cli_spawn --title X (default compact) → exit 0, single ticket-row line", { timeout: 5000 }, async () => {
     seedProject();
-    const r = await runCliSpawn(["add", "--project", "cli_spawn", "--title", "X"]);
+    const r = await runCliSpawn(["add", "--full", "--project", "cli_spawn", "--title", "X"]);
 
     expect(r.code).toBe(0);
     expectNoErrorOnStderr(r.stderr);
@@ -272,7 +274,7 @@ describe("CLI spawn integration (dist/server.js)", () => {
     seedProject();
     // Seed via --format json so we can read the created id back as a payload.
     const created = await runCliSpawn(["add", "--format", "json", "--project", "cli_spawn", "--title", "Seed"]);
-    const id = (JSON.parse(created.stdout) as { ticket: { id: string } }).ticket.id;
+    const id = (JSON.parse(created.stdout) as { id: string }).id;
 
     const r = await runCliSpawn(["get", id, "--format", "json", "--project", "cli_spawn"]);
 

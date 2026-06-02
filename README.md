@@ -107,7 +107,7 @@ Bundled slash commands: `/ticketgraph:tickets-add|status|next|open|done` — see
 | Tool | Description |
 |---|---|
 | `tickets.list` | List tickets with filters (status, priority, type, epic, tag, blocked_by). Default: open/in_progress/blocked. Supports `project: "all"`. |
-| `tickets.get` | Fetch one or more full tickets including tags, relations, and audit history. |
+| `tickets.get` | Fetch one or more full tickets including tags and relations. Audit history is opt-in: pass `include_audit: true` (CLI `--include_audit`). |
 | `tickets.search` | Full-text search (FTS5 BM25) over titles and descriptions. Supports `project: "all"`. |
 | `tickets.next` | Return the highest-priority open ticket with no open blockers. |
 | `tickets.related` | All tickets related to a given ticket, both directions, grouped by kind. |
@@ -118,11 +118,13 @@ Bundled slash commands: `/ticketgraph:tickets-add|status|next|open|done` — see
 
 ### Write tools
 
+> Write tools return a **lean** shape by default (e.g. `add` → `{ id, status, created_at }`); pass `full: true` (CLI `--full`) for the complete ticket row.
+
 | Tool | Description |
 |---|---|
-| `tickets.add` | Create a new ticket. Auto-generates an id if omitted. |
+| `tickets.add` | Create a new ticket. Auto-generates an id if omitted. Returns `{ id, status, created_at }`; `full: true` returns the full row. |
 | `tickets.add_many` | Create many tickets in one transaction (auto-ids, intra-batch parent/relations). All-or-nothing; returns created ids. |
-| `tickets.update` | Patch any subset of a ticket's mutable fields. Writes one audit row per changed field. |
+| `tickets.update` | Patch any subset of a ticket's mutable fields. Writes one audit row per changed field. Returns `{ id, changed, closed_at?, audit_entries }`; `full: true` returns the full row. |
 | `tickets.append_to_description` | Append text to a ticket's description. |
 
 ### Convenience tools

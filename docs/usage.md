@@ -130,7 +130,7 @@ tickets.search({ "q": "FTS" })
 tickets.add({ "title": "Tighten the ranking" })
 ```
 
-**Why:** `tickets.add` only requires `title`. The server auto-generates the next id from the project's existing ticket ids (e.g. `T42`). Status defaults to `open`, type to `task`.
+**Why:** `tickets.add` only requires `title`. The server auto-generates the next id from the project's existing ticket ids (e.g. `T42`). Status defaults to `open`, type to `task`. Returns a lean `{ id, status, created_at }` by default; pass `full: true` (CLI `--full`) to get the complete 13-field row.
 
 Optional fields you can add: `description`, `status`, `priority` (`P0`–`P3`), `type` (`task`, `bug`, `spike`, `followup`, `umbrella`), `effort` (Fibonacci: 1, 2, 3, 5, 8, 13), `epic`, `parent_id`, `tags`.
 
@@ -145,7 +145,7 @@ Optional fields you can add: `description`, `status`, `priority` (`P0`–`P3`), 
 tickets.update({ "id": "T5", "patch": { "status": "done" } })
 ```
 
-**Why:** `tickets.update` takes an `id` and a `patch` object containing only the fields to change. Each changed field writes one audit row. No-op patches (value already matches) return immediately without touching the database.
+**Why:** `tickets.update` takes an `id` and a `patch` object containing only the fields to change. Each changed field writes one audit row. No-op patches (value already matches) return immediately without touching the database. Returns a lean `{ id, changed, closed_at?, audit_entries }` by default (`closed_at` appears when a status→done/deferred transition sets it); pass `full: true` (CLI `--full`) for `{ ticket, audit_entries }`.
 
 ---
 
@@ -231,7 +231,7 @@ tickets.add_many({
 tickets.get({ "id": "T12" })
 ```
 
-Returns the full ticket including description, tags, all relations (outgoing and incoming), and the last 10 audit entries. For multiple tickets at once, use `ids: ["T12", "T13"]` (max 10).
+Returns the full ticket including description, tags, and all relations (outgoing and incoming). Recent audit history is opt-in — pass `include_audit: true` (CLI `--include_audit`) for the last 10 audit entries. For multiple tickets at once, use `ids: ["T12", "T13"]` (max 10); the `include_audit` flag applies per element.
 
 ### Link two tickets
 

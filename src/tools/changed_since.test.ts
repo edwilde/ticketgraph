@@ -35,7 +35,8 @@ function setup() {
   const tool = makeChangedSinceTool(db);
 
   async function addTicket(title = "Test ticket") {
-    const r = await addTool.handle(addTool.parseArgs({ project: "proj1", title }));
+    const r = await addTool.handle(addTool.parseArgs({ project: "proj1", title, full: true }));
+    if (!("ticket" in r)) throw new Error("expected full add result");
     return r.ticket;
   }
 

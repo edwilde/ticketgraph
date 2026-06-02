@@ -123,22 +123,23 @@ describe("MCP tools end-to-end 7-step flow", () => {
     }) as Record<string, unknown>;
     expect(reg["id"]).toBe("demo");
 
-    // Step 3: add first ticket.
+    // Step 3: add first ticket. Lean default → flat { id, status, created_at }.
     const add1 = await callTool(child, "tickets.add", {
       project: "demo",
       title: "First task",
-    }) as { ticket: Record<string, unknown> };
-    expect(add1.ticket["id"]).toBe("T1");
-    expect(add1.ticket["status"]).toBe("open");
+    }) as Record<string, unknown>;
+    expect(add1["id"]).toBe("T1");
+    expect(add1["status"]).toBe("open");
+    expect("ticket" in add1).toBe(false);
 
-    // Step 3b: update T1 → done; then get to confirm closed_at.
+    // Step 3b: update T1 → done. Lean default surfaces changed + closed_at.
     const update1 = await callTool(child, "tickets.update", {
       project: "demo",
       id: "T1",
       patch: { status: "done" },
-    }) as { ticket: Record<string, unknown>; audit_entries: number };
-    expect(update1.ticket["status"]).toBe("done");
-    expect(update1.ticket["closed_at"]).not.toBeNull();
+    }) as { changed: string[]; closed_at: string | null; audit_entries: number };
+    expect(update1.changed).toContain("status");
+    expect(update1.closed_at).not.toBeNull();
     expect(update1.audit_entries).toBe(1);
 
     const getT1 = await callTool(child, "tickets.get", {
@@ -148,12 +149,14 @@ describe("MCP tools end-to-end 7-step flow", () => {
     expect(getT1.ticket["status"]).toBe("done");
     expect(getT1.ticket["closed_at"]).not.toBeNull();
 
-    // Step 4: add second ticket with priority and effort.
+    // Step 4: add second ticket with priority and effort. full:true returns the
+    // complete row so we can assert the stored priority/effort.
     const add2 = await callTool(child, "tickets.add", {
       project: "demo",
       title: "Second",
       priority: "P1",
       effort: 3,
+      full: true,
     }) as { ticket: Record<string, unknown> };
     expect(add2.ticket["id"]).toBe("T2");
     expect(add2.ticket["priority"]).toBe("P1");
@@ -169,10 +172,11 @@ describe("MCP tools end-to-end 7-step flow", () => {
     expect(list.count).toBe(2);
     expect(list.rows).toHaveLength(2);
 
-    // Step 6: get T2 → full ticket with recent_audit having 1 _created row.
+    // Step 6: get T2 → full ticket with recent_audit having 1 _created row (opt-in).
     const get = await callTool(child, "tickets.get", {
       project: "demo",
       id: "T2",
+      include_audit: true,
     }) as { ticket: Record<string, unknown> };
     expect(get.ticket["id"]).toBe("T2");
     const audit = get.ticket["recent_audit"] as Array<Record<string, unknown>>;
@@ -202,22 +206,23 @@ describe("MCP tools end-to-end 7-step flow", () => {
     expect(link.to).toBe("T2");
     expect(link.kind).toBe("blocks");
 
-    // Step 9: set_parent T2 → parent T1.
+    // Step 9: set_parent T2 → parent T1. Lean default → flat { id, parent_id, changed }.
     const setParent = await callTool(child, "tickets.set_parent", {
       project: "demo",
       id: "T2",
       parent_id: "T1",
-    }) as { ticket: Record<string, unknown>; changed: boolean };
-    expect(setParent.ticket["parent_id"]).toBe("T1");
+    }) as { id: string; parent_id: string | null; changed: boolean };
+    expect(setParent.parent_id).toBe("T1");
     expect(setParent.changed).toBe(true);
 
     // Step 10: append_to_description on T1 (currently empty due to update to done, not desc).
+    // Lean default → flat { id, description }.
     const append = await callTool(child, "tickets.append_to_description", {
       project: "demo",
       id: "T1",
       text: "extra note",
-    }) as { ticket: Record<string, unknown> };
-    expect(append.ticket["description"]).toBe("extra note");
+    }) as { id: string; description: string };
+    expect(append.description).toBe("extra note");
 
     // Step 11: add_tag "Urgent" to T1 → normalised to "urgent".
     const addTag = await callTool(child, "tickets.add_tag", {

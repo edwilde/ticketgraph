@@ -228,7 +228,7 @@ Auto-scoped to current project from cwd; pass `project: "<id>"` to override, `pr
 | Tool | Returns | Typical token cost |
 |---|---|---|
 | `tickets.list` | summary rows (id, title, status, priority, type, effort, epic, parent_id) — *no descriptions* | 200-1500 |
-| `tickets.get` | one or more full tickets with relations and last N audit entries. `ids` array capped at 10 per call to bound response size. | 500-5000 per ticket |
+| `tickets.get` | one or more full tickets with relations and last N audit entries. `ids` array capped at 10 per call to bound response size. *→ default-leaned 2026-06-03 (T20): `recent_audit` is now omitted by default; opt back in with `include_audit: true` (CLI `--include_audit`). Tags + relations stay default-on. See [findings](../../.ai/2026-06-03-T20-response-shape-findings.md).* | 500-5000 per ticket |
 | `tickets.search` | up to N (default 10) FTS5-ranked hits with 240-char snippets | 200-1000 |
 | `tickets.next` | the highest-priority `status='open'`, unblocked ticket (no incoming `blocks` edges from a non-`done`/`deferred` ticket). Returns `{ ticket, reason: { priority, age_days, no_open_blockers: true } }`. Sort: `priority ASC NULLS LAST, created_at ASC`. | 100-300 |
 | `tickets.related` | incoming and outgoing relations for a ticket, labelled by direction and kind. Recurses up to `depth` (default 1, max 3). | 100-1000 |
@@ -257,6 +257,8 @@ Auto-scoped to current project from cwd; pass `project: "<id>"` to override, `pr
 | `tickets.unlink` | Remove a specific (from, to, kind) edge. |
 | `tickets.set_parent` | Set or clear `parent_id` (umbrella hierarchy). |
 | `tickets.add_tag` / `tickets.remove_tag` | Tag management. |
+
+*→ Default return shapes leaned 2026-06-03 (T20): the mutating tools above whose old return embedded a full 13-field ticket row now return a lean flat shape by default, with the full row available via `full: true` (CLI `--full`): `add` → `{ id, status, created_at }`; `update` → `{ id, changed[], closed_at?, audit_entries }`; `set_parent` → `{ id, parent_id, changed }`; `append_to_description` → `{ id, description }`. No datum becomes unrecoverable — `full: true` returns the prior shape. See [findings](../../.ai/2026-06-03-T20-response-shape-findings.md).*
 
 ### Admin tools
 
@@ -435,6 +437,8 @@ These are first-class success criteria, not aspirations.
 | SQLite query latency (any read tool) | <50ms p99 | Indexes cover all common predicates |
 
 Token costs measured against a populated demo import (~130 tickets, ~30 relations).
+
+*→ Budgets tightened 2026-06-03 (T20): write tools (`add`, `update`, `set_parent`, `append_to_description`) and `tickets.get` now default to lean response shapes, with the full payload opt-in (`full: true` / `include_audit: true`). Measured byte reductions on seeded fixtures: add −73%, update −68%, set_parent −84%, append_to_description −80%, `get` default −76%. Per-tool budget tests assert the leaner defaults. See [findings](../../.ai/2026-06-03-T20-response-shape-findings.md).*
 
 ## 11. Out of scope for v1
 

@@ -24,11 +24,22 @@ export interface AddArgs {
   effort?: number | null;
   created_by?: string;
   tags?: string[];
+  full?: boolean;
 }
 
-export interface AddResult {
+/** Lean default return: only the genuinely-new, server-computed fields. */
+export interface AddResultLean {
+  id: string;
+  status: string;
+  created_at: string;
+}
+
+/** Full opt-in return: the complete ticket row (back-compat shape). */
+export interface AddResultFull {
   ticket: TicketRow;
 }
+
+export type AddResult = AddResultLean | AddResultFull;
 
 interface TicketRow {
   id: string;
@@ -66,6 +77,7 @@ export function makeAddTool(db: Database.Database, getClientRoots: GetClientRoot
         effort: { type: "number", enum: [1, 2, 3, 5, 8, 13], nullable: true },
         created_by: { type: "string" },
         tags: { type: "array", items: { type: "string" } },
+        full: { type: "boolean", description: "Return the full ticket row instead of the lean default." },
       },
       required: ["title"],
       additionalProperties: false,
@@ -127,6 +139,7 @@ export function makeAddTool(db: Database.Database, getClientRoots: GetClientRoot
         effort: (r["effort"] as number | null | undefined) ?? undefined,
         created_by: typeof r["created_by"] === "string" ? r["created_by"] : undefined,
         tags: Array.isArray(tags) ? (tags as string[]) : undefined,
+        full: r["full"] === true,
       };
     },
 
@@ -242,7 +255,10 @@ export function makeAddTool(db: Database.Database, getClientRoots: GetClientRoot
         .prepare("SELECT * FROM tickets WHERE project_id = ? AND id = ?")
         .get(projectId, ticketId) as TicketRow;
 
-      return { ticket: row };
+      if (args.full) {
+        return { ticket: row };
+      }
+      return { id: row.id, status: row.status, created_at: row.created_at };
     },
   };
 }

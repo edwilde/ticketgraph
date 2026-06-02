@@ -34,7 +34,9 @@ function setup() {
   const removeTagTool = makeRemoveTagTool(db);
 
   async function addTicket(title = "Test ticket") {
-    return addTool.handle(addTool.parseArgs({ project: "proj1", title }));
+    const r = await addTool.handle(addTool.parseArgs({ project: "proj1", title, full: true }));
+    if (!("ticket" in r)) throw new Error("expected full add result");
+    return r;
   }
 
   function auditRows(ticketId: string) {

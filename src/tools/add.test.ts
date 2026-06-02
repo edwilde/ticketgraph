@@ -4,7 +4,12 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { openDb } from "../db.js";
-import { makeAddTool } from "./add.js";
+import { makeAddTool, type AddResult } from "./add.js";
+
+/** Extract the ticket id from either the lean or full add result. */
+function leanId(result: AddResult): string {
+  return "ticket" in result ? result.ticket.id : result.id;
+}
 
 const tmpDirs: string[] = [];
 
@@ -35,10 +40,28 @@ function setup() {
 }
 
 describe("tickets.add", () => {
-  it("success on empty project → returns ticket with id T1", async () => {
+  it("lean default → returns only id, status, created_at; omits the rest", async () => {
     const { db, tool } = setup();
     const result = await tool.handle(tool.parseArgs({ project: "proj1", title: "First task" }));
 
+    expect(result).toEqual({ id: "T1", status: "open", created_at: expect.any(String) });
+    // Lean shape must NOT carry the full row.
+    expect("ticket" in result).toBe(false);
+    expect("title" in result).toBe(false);
+    expect("description" in result).toBe(false);
+    expect("project_id" in result).toBe(false);
+    expect("created_by" in result).toBe(false);
+    expect("type" in result).toBe(false);
+    db.close();
+  });
+
+  it("full:true → returns the unchanged full ticket row", async () => {
+    const { db, tool } = setup();
+    const result = await tool.handle(
+      tool.parseArgs({ project: "proj1", title: "First task", full: true }),
+    );
+
+    if (!("ticket" in result)) throw new Error("expected full result");
     expect(result.ticket.id).toBe("T1");
     expect(result.ticket.project_id).toBe("proj1");
     expect(result.ticket.title).toBe("First task");
@@ -58,7 +81,7 @@ describe("tickets.add", () => {
     }
 
     const result = await tool.handle(tool.parseArgs({ project: "proj1", title: "New task" }));
-    expect(result.ticket.id).toBe("T4");
+    expect(leanId(result)).toBe("T4");
     db.close();
   });
 
@@ -67,7 +90,7 @@ describe("tickets.add", () => {
     const result = await tool.handle(
       tool.parseArgs({ project: "proj1", id: "CUSTOM-99", title: "Custom" }),
     );
-    expect(result.ticket.id).toBe("CUSTOM-99");
+    expect(leanId(result)).toBe("CUSTOM-99");
     db.close();
   });
 
@@ -107,7 +130,7 @@ describe("tickets.add", () => {
     const result = await tool.handle(
       tool.parseArgs({ project: "proj1", title: "Tagged", tags: ["  FTS  ", "SEARCH", "fts"] }),
     );
-    const ticketId = result.ticket.id;
+    const ticketId = leanId(result);
     const tags = db
       .prepare("SELECT tag FROM tags WHERE project_id = ? AND ticket_id = ? ORDER BY tag")
       .all("proj1", ticketId) as Array<{ tag: string }>;
@@ -134,7 +157,8 @@ describe("tickets.add", () => {
 
   it("audit log contains exactly one _created row for the inserted ticket", async () => {
     const { db, tool } = setup();
-    const result = await tool.handle(tool.parseArgs({ project: "proj1", title: "Audited" }));
+    const result = await tool.handle(tool.parseArgs({ project: "proj1", title: "Audited", full: true }));
+    if (!("ticket" in result)) throw new Error("expected full result");
     const ticketId = result.ticket.id;
 
     const auditRows = db
@@ -153,7 +177,8 @@ describe("tickets.add", () => {
 
   it("created_by defaults to 'claude' when omitted", async () => {
     const { db, tool } = setup();
-    const result = await tool.handle(tool.parseArgs({ project: "proj1", title: "X" }));
+    const result = await tool.handle(tool.parseArgs({ project: "proj1", title: "X", full: true }));
+    if (!("ticket" in result)) throw new Error("expected full result");
     expect(result.ticket.created_by).toBe("claude");
     db.close();
   });
@@ -161,9 +186,20 @@ describe("tickets.add", () => {
   it("created_by is honoured when supplied", async () => {
     const { db, tool } = setup();
     const result = await tool.handle(
-      tool.parseArgs({ project: "proj1", title: "X", created_by: "ed" }),
+      tool.parseArgs({ project: "proj1", title: "X", created_by: "ed", full: true }),
     );
+    if (!("ticket" in result)) throw new Error("expected full result");
     expect(result.ticket.created_by).toBe("ed");
+    db.close();
+  });
+
+  it("token budget: lean default result < 20 × 4 bytes", async () => {
+    // Lean default add returns { id, status, created_at } (~67 bytes measured).
+    // Threshold set just above with headroom; guards against re-inflation.
+    const { db, tool } = setup();
+    const result = await tool.handle(tool.parseArgs({ project: "proj1", title: "First task" }));
+    const bytes = Buffer.byteLength(JSON.stringify(result), "utf8");
+    expect(bytes).toBeLessThan(20 * 4);
     db.close();
   });
 
@@ -177,8 +213,10 @@ describe("tickets.add", () => {
         effort: 3,
         epic: "Foundation",
         type: "bug",
+        full: true,
       }),
     );
+    if (!("ticket" in result)) throw new Error("expected full result");
     expect(result.ticket.priority).toBe("P1");
     expect(result.ticket.effort).toBe(3);
     expect(result.ticket.epic).toBe("Foundation");

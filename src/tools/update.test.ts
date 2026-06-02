@@ -5,7 +5,13 @@ import { tmpdir } from "node:os";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { openDb } from "../db.js";
 import { makeAddTool } from "./add.js";
-import { makeUpdateTool } from "./update.js";
+import { makeUpdateTool, type UpdateResult, type UpdateResultLean } from "./update.js";
+
+/** Narrow an update result to the lean shape (fails the test otherwise). */
+function asLean(result: UpdateResult): UpdateResultLean {
+  if ("ticket" in result) throw new Error("expected lean result, got full");
+  return result;
+}
 
 const tmpDirs: string[] = [];
 
@@ -34,7 +40,11 @@ function setup() {
   const updateTool = makeUpdateTool(db);
 
   async function addTicket(opts: Record<string, unknown> = {}) {
-    return addTool.handle(addTool.parseArgs({ project: "proj1", title: "Test ticket", ...opts }));
+    const r = await addTool.handle(
+      addTool.parseArgs({ project: "proj1", title: "Test ticket", full: true, ...opts }),
+    );
+    if (!("ticket" in r)) throw new Error("expected full add result");
+    return r;
   }
 
   function auditRows(ticketId: string) {
@@ -54,7 +64,7 @@ function setup() {
 }
 
 describe("tickets.update", () => {
-  it("mark open → done sets closed_at and writes 1 status audit row", async () => {
+  it("lean default: open → done → changed includes 'status' and closed_at is non-null", async () => {
     const { db, addTicket, updateTool, auditRows } = setup();
     const { ticket } = await addTicket();
     expect(ticket.status).toBe("open");
@@ -62,10 +72,15 @@ describe("tickets.update", () => {
     const result = await updateTool.handle(
       updateTool.parseArgs({ project: "proj1", id: ticket.id, patch: { status: "done" } }),
     );
+    const lean = asLean(result);
 
-    expect(result.ticket.status).toBe("done");
-    expect(result.ticket.closed_at).not.toBeNull();
-    expect(result.audit_entries).toBe(1);
+    // Lean shape: no full ticket row.
+    expect("status" in lean).toBe(false);
+    expect(lean.changed).toEqual(["status"]);
+    expect(lean.audit_entries).toBe(1);
+    // closed_at surfaced because a status change fired the trigger.
+    expect(lean.closed_at).not.toBeNull();
+    expect(lean.closed_at).toEqual(expect.any(String));
 
     const rows = auditRows(ticket.id);
     expect(rows).toHaveLength(1);
@@ -75,16 +90,50 @@ describe("tickets.update", () => {
     db.close();
   });
 
-  it("mark open → deferred sets closed_at", async () => {
-    const { db, addTicket, updateTool, auditRows } = setup();
+  it("lean default: a non-status change omits closed_at entirely", async () => {
+    const { db, addTicket, updateTool } = setup();
+    const { ticket } = await addTicket();
+
+    const result = await updateTool.handle(
+      updateTool.parseArgs({ project: "proj1", id: ticket.id, patch: { priority: "P0" } }),
+    );
+    const lean = asLean(result);
+
+    expect(lean.changed).toEqual(["priority"]);
+    expect(lean.audit_entries).toBe(1);
+    // status did not change → closed_at must be absent (not just null).
+    expect("closed_at" in lean).toBe(false);
+    db.close();
+  });
+
+  it("full:true: open → done returns the unchanged full ticket row", async () => {
+    const { db, addTicket, updateTool } = setup();
+    const { ticket } = await addTicket();
+
+    const result = await updateTool.handle(
+      updateTool.parseArgs({ project: "proj1", id: ticket.id, patch: { status: "done" }, full: true }),
+    );
+
+    if (!("ticket" in result)) throw new Error("expected full result");
+    expect(result.ticket.status).toBe("done");
+    expect(result.ticket.closed_at).not.toBeNull();
+    expect(result.ticket.project_id).toBe("proj1");
+    expect(result.ticket.created_by).toBe("claude");
+    expect(result.audit_entries).toBe(1);
+    db.close();
+  });
+
+  it("mark open → deferred sets closed_at (lean)", async () => {
+    const { db, addTicket, updateTool } = setup();
     const { ticket } = await addTicket();
 
     const result = await updateTool.handle(
       updateTool.parseArgs({ project: "proj1", id: ticket.id, patch: { status: "deferred" } }),
     );
+    const lean = asLean(result);
 
-    expect(result.ticket.status).toBe("deferred");
-    expect(result.ticket.closed_at).not.toBeNull();
+    expect(lean.changed).toContain("status");
+    expect(lean.closed_at).not.toBeNull();
     db.close();
   });
 
@@ -101,9 +150,11 @@ describe("tickets.update", () => {
     const result = await updateTool.handle(
       updateTool.parseArgs({ project: "proj1", id: ticket.id, patch: { status: "open" } }),
     );
+    const lean = asLean(result);
 
-    expect(result.ticket.status).toBe("open");
-    expect(result.ticket.closed_at).toBeNull();
+    expect(lean.changed).toContain("status");
+    // status changed → closed_at surfaced, and the trigger cleared it.
+    expect(lean.closed_at).toBeNull();
 
     const rows = auditRows(ticket.id);
     expect(rows).toHaveLength(2);
@@ -143,7 +194,10 @@ describe("tickets.update", () => {
       updateTool.parseArgs({ project: "proj1", id: ticket.id, patch: { status: "open" } }),
     );
 
-    expect(result.audit_entries).toBe(0);
+    const lean = asLean(result);
+    expect(lean.changed).toEqual([]);
+    expect("closed_at" in lean).toBe(false);
+    expect(lean.audit_entries).toBe(0);
     const rows = auditRows(ticket.id);
     expect(rows).toHaveLength(0);
     db.close();
@@ -247,7 +301,7 @@ describe("tickets.update", () => {
       updateTool.parseArgs({ project: "proj1", id: child.id, patch: { parent_id: null } }),
     );
 
-    expect(result.ticket.parent_id).toBeNull();
+    expect(asLean(result).changed).toEqual(["parent_id"]);
 
     const rows = auditRows(child.id);
     expect(rows).toHaveLength(1);
@@ -284,6 +338,20 @@ describe("tickets.update", () => {
         }),
       ),
     ).rejects.toThrow(McpError);
+    db.close();
+  });
+
+  it("token budget: lean default result < 28 × 4 bytes", async () => {
+    // Lean default update returns { id, changed[], closed_at?, audit_entries }
+    // (~89 bytes measured on a status→done patch). Threshold set just above with
+    // headroom; guards against re-inflation of the default write-tool return.
+    const { db, addTicket, updateTool } = setup();
+    const { ticket } = await addTicket();
+    const result = await updateTool.handle(
+      updateTool.parseArgs({ project: "proj1", id: ticket.id, patch: { status: "done" } }),
+    );
+    const bytes = Buffer.byteLength(JSON.stringify(result), "utf8");
+    expect(bytes).toBeLessThan(28 * 4);
     db.close();
   });
 

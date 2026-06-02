@@ -12,6 +12,7 @@ export interface SetParentArgs {
   project?: string;
   id: string;
   parent_id: string | null;
+  full?: boolean;
 }
 
 interface TicketRow {
@@ -30,10 +31,20 @@ interface TicketRow {
   closed_at: string | null;
 }
 
-export interface SetParentResult {
+/** Lean default return. */
+export interface SetParentResultLean {
+  id: string;
+  parent_id: string | null;
+  changed: boolean;
+}
+
+/** Full opt-in return: the complete ticket row (back-compat shape). */
+export interface SetParentResultFull {
   ticket: TicketRow;
   changed: boolean;
 }
+
+export type SetParentResult = SetParentResultLean | SetParentResultFull;
 
 export function makeSetParentTool(db: Database.Database, getClientRoots: GetClientRoots = NO_ROOTS): Tool<SetParentArgs, SetParentResult> {
   return {
@@ -51,6 +62,7 @@ export function makeSetParentTool(db: Database.Database, getClientRoots: GetClie
           nullable: true,
           description: "New parent ticket id, or null to clear.",
         },
+        full: { type: "boolean", description: "Return the full ticket row instead of the lean default." },
       },
       required: ["id", "parent_id"],
       additionalProperties: false,
@@ -82,6 +94,7 @@ export function makeSetParentTool(db: Database.Database, getClientRoots: GetClie
         project: typeof r["project"] === "string" ? r["project"] : undefined,
         id,
         parent_id: rawParentId as string | null,
+        full: r["full"] === true,
       };
     },
 
@@ -113,7 +126,10 @@ export function makeSetParentTool(db: Database.Database, getClientRoots: GetClie
 
       // No-op: same parent as current.
       if (newParentId === current.parent_id) {
-        return { ticket: current, changed: false };
+        if (args.full) {
+          return { ticket: current, changed: false };
+        }
+        return { id: ticketId, parent_id: current.parent_id, changed: false };
       }
 
       if (newParentId !== null) {
@@ -165,7 +181,10 @@ export function makeSetParentTool(db: Database.Database, getClientRoots: GetClie
         .prepare("SELECT * FROM tickets WHERE project_id = ? AND id = ?")
         .get(projectId, ticketId) as TicketRow;
 
-      return { ticket: updated, changed: true };
+      if (args.full) {
+        return { ticket: updated, changed: true };
+      }
+      return { id: ticketId, parent_id: updated.parent_id, changed: true };
     },
   };
 }

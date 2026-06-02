@@ -42,6 +42,7 @@ export interface UpdateArgs {
   project?: string;
   id: string;
   patch: UpdatePatch;
+  full?: boolean;
 }
 
 interface TicketRow {
@@ -60,10 +61,22 @@ interface TicketRow {
   closed_at: string | null;
 }
 
-export interface UpdateResult {
+/** Lean default return. */
+export interface UpdateResultLean {
+  id: string;
+  changed: string[];
+  /** Present only when a status change fired the closed_at trigger. */
+  closed_at?: string | null;
+  audit_entries: number;
+}
+
+/** Full opt-in return: the complete ticket row (back-compat shape). */
+export interface UpdateResultFull {
   ticket: TicketRow;
   audit_entries: number;
 }
+
+export type UpdateResult = UpdateResultLean | UpdateResultFull;
 
 export function makeUpdateTool(db: Database.Database, getClientRoots: GetClientRoots = NO_ROOTS): Tool<UpdateArgs, UpdateResult> {
   return {
@@ -92,6 +105,7 @@ export function makeUpdateTool(db: Database.Database, getClientRoots: GetClientR
           },
           additionalProperties: false,
         },
+        full: { type: "boolean", description: "Return the full ticket row instead of the lean default." },
       },
       required: ["id", "patch"],
       additionalProperties: false,
@@ -209,6 +223,7 @@ export function makeUpdateTool(db: Database.Database, getClientRoots: GetClientR
         project: typeof r["project"] === "string" ? r["project"] : undefined,
         id,
         patch,
+        full: r["full"] === true,
       };
     },
 
@@ -257,7 +272,10 @@ export function makeUpdateTool(db: Database.Database, getClientRoots: GetClientR
 
       // No-op: return early without touching the DB.
       if (changes.length === 0) {
-        return { ticket: current, audit_entries: 0 };
+        if (args.full) {
+          return { ticket: current, audit_entries: 0 };
+        }
+        return { id: ticketId, changed: [], audit_entries: 0 };
       }
 
       // Cycle detection for parent_id changes.
@@ -330,7 +348,22 @@ export function makeUpdateTool(db: Database.Database, getClientRoots: GetClientR
         .prepare("SELECT * FROM tickets WHERE project_id = ? AND id = ?")
         .get(projectId, ticketId) as TicketRow;
 
-      return { ticket: updated, audit_entries: changes.length };
+      if (args.full) {
+        return { ticket: updated, audit_entries: changes.length };
+      }
+
+      const changed = changes.map((c) => c.field);
+      const result: UpdateResultLean = {
+        id: ticketId,
+        changed,
+        audit_entries: changes.length,
+      };
+      // closed_at is trigger-managed: surface it only when status changed,
+      // since that is the transition that can set or clear it.
+      if (changed.includes("status")) {
+        result.closed_at = updated.closed_at;
+      }
+      return result;
     },
   };
 }
