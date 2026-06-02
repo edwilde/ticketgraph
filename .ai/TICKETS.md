@@ -9,13 +9,17 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 
 | Done ✅ | In progress | Open |
 |---|---|---|
-| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T21, T22, T23, T24, T25, T26 | _(none)_ | T20 |
+| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26 | _(none)_ | T27 |
 
 **T1–T18 complete (2026-05-29).** 410 tests across 42 files, deterministically green (verified 12/12 consecutive full-suite runs). 21 MCP tools, demo + sample parsers (both 100% heading parse on the live files), plugin manifest + install docs, README + usage + migration docs, and GitHub Actions CI (ubuntu + macOS).
 
 **T19, T20 (user-requested, 2026-05-29):** batch ticket creation (`tickets.add_many`) and a token-efficiency review of tool response shapes — both motivated by batch-add sessions where N single `tickets.add` calls each echo a full ticket row back.
 
 **T21 (user-requested, 2026-05-30):** `tickets.export` — a timestamp-stamped, banner-labelled `.ai/TICKETS.md` snapshot. Consciously reverses the spec's "no markdown export / TICKETS.md not regenerated" non-goal; the loud generated-at banner is the drift mitigation that earns the reversal.
+
+**T20 landed (2026-06-03, four-stage pipeline):** lean default response shapes — write tools (`add`/`update`/`set_parent`/`append_to_description`) now return a lean flat shape by default with the full row via `full: true`, and `tickets.get` omits `recent_audit` unless `include_audit: true`. Measured default-shape byte reductions: add −73%, update −68%, set_parent −84%, append −80%, get −76%. No datum unrecoverable (opt-in restores it). 643 tests green. Findings: `.ai/2026-06-03-T20-response-shape-findings.md`; plan + review record: `.ai/implementation-plans/T20-token-efficiency-response-shapes.md`. **Key learning:** token cost is path-dependent — extra fields are free on the CLI *compact* path (6 columns rendered) but billed in full on the MCP / `--format json` path; trimming `TResult` is the only lever for the JSON/MCP paths.
+
+**T27 (user-requested, 2026-06-03):** reduce the token cost of the common "outstanding tickets" read path. A real session burned ~3k tokens / 9 Bash calls to answer it, because (a) compact `get` renders the list row and hides the description, (b) repeated `--id` silently last-wins instead of multi-fetching, and (c) the one-call path (`list --include_description`) is undiscoverable. Token efficiency is again the driver — same mission as T20/T22–T26, now on the *read* round-trip rather than the response shape.
 
 **T22–T26 (user-requested, 2026-05-31):** a CLI surface so every tool runs **either via MCP or `ticketgraph <command>`** — reversing the spec's "no CLI" YAGNI non-goal (§5, and the P3 "CLI surface" deferral). **Token efficiency is the driver, and the real win is structural:** the MCP injects all 23 tool schemas into *every* connected session (~2–4k tokens of always-on context tax, paid whether or not tickets are touched). A CLI invoked via Bash costs ~0 context until used. The plan therefore makes the **CLI the default and the MCP opt-in** (decision 2026-05-31), keeping always-on cost to a one-line `CLAUDE.md` pointer + on-demand `--help`. Cheap to build because every tool is already a pure `Tool<TArgs,TResult>` (`parseArgs → handle → plain data`); the CLI is a second thin front-end over the same `makeToolRegistry`, not a rewrite. Decisions locked 2026-05-31: **dual-mode single bin** (no args / `--mcp` → stdio server; `ticketgraph <command>` → CLI), **CLI default + MCP opt-in**, **compact-text default output** (`--format json` retained). **Landed 2026-05-31 (v0.4.0):** all five tickets built via the four-stage pipeline (writing-plans → devils-advocate → subagent-driven-development → review-implementation; per-ticket records in `.ai/implementation-plans/2026-05-31-T2[2-6]-*.md`). 628 tests across 55 files, deterministically green; dual-mode verified end-to-end with the MCP off. `.mcp.json` removed (MCP now opt-in — restore + `/reload-plugins` to re-enable); compact output measured ~81% smaller than JSON on multi-row lists.
 
@@ -438,6 +442,34 @@ A second thin front-end over the existing `makeToolRegistry` so every tool is re
 - Slash commands work in the default (MCP-off) configuration.
 - README/usage/install updated; `npm run build` + full suite green; version is 0.4.0.
 **Notes:** four-stage pipeline. This ticket is where "token efficiency is the driver" actually pays out — everything before it is plumbing; making MCP opt-in + a one-line pointer is what removes the always-on tax.
+
+---
+
+### T27 — Cut the token cost of the "outstanding tickets" read path
+**Status:** Open. **Type:** enhancement (token efficiency / UX). **Effort:** 3.
+**Found by:** a real session (2026-06-03) that spent ~3k tokens and **9 Bash calls** to answer "outstanding tickets" for a 4-ticket project. The model behaved correctly at each step; the surface defeated it. Same mission as T20/T22–T26 — token efficiency — but on the *read round-trip*, not the response shape. Note T20 deliberately did **not** touch the formatter or flag layer, so these failures are live in current code.
+
+**The failure trace (verified against current code):**
+1. `list --status open` → 1 ticket. `--status open` is narrower than the default filter (`open/in_progress/blocked`); "outstanding" has no alias, so the model guessed wrong first.
+2. `get T143 T147 T86-followup` (default compact) → the **same truncated one-liner as `list`, no description**. Root cause: `cli/format.ts` `rowsOf()` wraps a single `{ticket}` as a row collection → `compactRows` renders only the 6 `TICKET_COLUMNS` (`format.ts:30-37`). `get`'s entire reason to exist (description, tags, relations) is invisible in the default format.
+3. `--help` call just to find flags.
+4. `get --id T143 --id T147 --id T86-followup --format json` → **only one ticket** (the last id). Root cause: `get` exposes a string `id` AND an array `ids` (`get.ts:65-66`); repeated `--id` hits the string branch which silently last-wins (`flags.ts:151-152`). The multi-fetch flag is the plural `--ids` (`flags.ts:139-142`), which nothing surfaces.
+5. Fallback to N individual `get --format json` calls + a `stats` cross-check to discover a `deferred` ticket the default `list` hides.
+
+**Scope (ranked by leverage — land the high-leverage ones, record any won't-do):**
+- **(P1) `get` compact must render the full ticket body** — description + tags + relations, NOT the list row. `get` is the detail command; its compact output must differ from `list`'s. This one fix makes step 2 sufficient and removes the `--help` + JSON fallbacks. Likely a `get`-specific compact branch in `format.ts` (the formatter is generic/shape-driven today — add a single-full-ticket case, or special-case the `{ticket}`/`{tickets}` result of `get`).
+- **(P1) Multi-id via CLI must never silently drop ids.** Pick one: make repeated `--id` collect into `ids`, accept `--ids a,b,c` (comma-split), or **throw** when `--id` appears >once pointing at `--ids`. Returning 1 of 3 silently is the footgun. Prefer: accept repeated `--id` as the array (most ergonomic for the model) OR a clear error.
+- **(P2) Make the one-call path discoverable.** `list --include_description` already answers the whole question in ONE call for non-deferred tickets — it's just unknown. Document it in `skills/ticketgraph/SKILL.md` and top-level `--help`. Consider a `--status outstanding` alias (= the current default) and a help line stating `deferred`/`done` are excluded by default.
+- **(P3) Compact title truncation** (60 chars, `format.ts:27`) forced an escalation just to read titles — widen it, or note `--format table` for multi-row reads. Lowest leverage; record as won't-do if the P1 items already remove the need.
+
+**Acceptance:**
+- `ticketgraph get <id>` in the DEFAULT (compact) format shows the description (and tags/relations), visibly distinct from `list`; a token-budget test guards the single-`get` compact size.
+- Passing multiple ids via the CLI returns all of them (or fails loudly) — covered by a CLI spawn test; the silent-last-wins behaviour is gone.
+- `SKILL.md` + `--help` document the one-call outstanding path; a test or doc-grep asserts the guidance exists.
+- No regression to existing formats/tools; `npm run build` + full suite green.
+- Findings note in `.ai/` measuring the before/after call-count + token cost of the "outstanding tickets" scenario on a seeded fixture (the 9-calls→target comparison).
+
+**Notes:** four-stage pipeline. Relates to T20 (response shapes) and T24 (output formatting). The P1 pair (`get` body in compact + multi-id) is the bulk of the win; the rest is discoverability polish. Effort **3**: formatter change is localised, multi-id is a flag-layer tweak, docs are cheap.
 
 ---
 
