@@ -3,3 +3,5 @@ Token-cheap ticket queries via `ticketgraph <command>` (read: list, get, search,
 ## Git workflow
 
 Always commit completed, verified units of work — don't leave changes uncommitted waiting to be asked. Commit after each self-contained piece (a ticket, a fix, a doc update) once `npm run build` + `npm test` are green; keep commits atomic with a descriptive subject. Push when appropriate (after a ticket lands or a logical batch is committed and tests pass). Single-user project: commit directly to `main` (no PR/branch needed unless the work is genuinely exploratory).
+
+Bump the version when a change is user-visible — minor (`0.x.0`) for behaviour/feature changes, patch (`0.0.x`) for fixes. Keep `package.json` and `.claude-plugin/plugin.json` in sync (a drift-guard test enforces this; `src/version.ts` reads `package.json` at runtime). Update the `tickets.ping` example version in `docs/install.md`. Tag the release (`vX.Y.Z`) and push tags.
