@@ -9,7 +9,7 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 
 | Done ✅ | In progress | Open |
 |---|---|---|
-| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26 | _(none)_ | T27, T28 |
+| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T28 | _(none)_ | T27 |
 
 **T1–T18 complete (2026-05-29).** 410 tests across 42 files, deterministically green (verified 12/12 consecutive full-suite runs). 21 MCP tools, demo + sample parsers (both 100% heading parse on the live files), plugin manifest + install docs, README + usage + migration docs, and GitHub Actions CI (ubuntu + macOS).
 
@@ -19,7 +19,7 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 
 **T20 landed (2026-06-03, four-stage pipeline):** lean default response shapes — write tools (`add`/`update`/`set_parent`/`append_to_description`) now return a lean flat shape by default with the full row via `full: true`, and `tickets.get` omits `recent_audit` unless `include_audit: true`. Measured default-shape byte reductions: add −73%, update −68%, set_parent −84%, append −80%, get −76%. No datum unrecoverable (opt-in restores it). 643 tests green. Findings: `.ai/2026-06-03-T20-response-shape-findings.md`; plan + review record: `.ai/implementation-plans/T20-token-efficiency-response-shapes.md`. **Key learning:** token cost is path-dependent — extra fields are free on the CLI *compact* path (6 columns rendered) but billed in full on the MCP / `--format json` path; trimming `TResult` is the only lever for the JSON/MCP paths.
 
-**T28 (user-requested, 2026-06-04):** the README leads with the MCP even though the CLI is the preferred default — restructure it CLI-first, and add a `ticketgraph mcp` command to start the server (symmetric with the `--mcp` flag, which stays for back-compat). Starting the server is a *mode*, not a registry tool, so it lives in the entry-point switch (`server.ts`), not the CLI catalogue.
+**T28 landed (2026-06-04, v0.6.0, four-stage pipeline):** added the `ticketgraph mcp` launch command (additive disjunct in `server.ts:110`; `--mcp`/no-args unchanged and regression-tested) and restructured the README CLI-first with the MCP demoted to an opt-in section. `--help` footer + `docs/install.md` document `mcp` as preferred. `mcp` stays an entry-switch *mode* (never routed through `runCli`), so it ignores trailing flags. 646 tests green; plan + review record in `.ai/implementation-plans/T28-mcp-command-and-cli-first-readme.md`. Tagged v0.6.0 with a GitHub release.
 
 **T27 (user-requested, 2026-06-03):** reduce the token cost of the common "outstanding tickets" read path. A real session burned ~3k tokens / 9 Bash calls to answer it, because (a) compact `get` renders the list row and hides the description, (b) repeated `--id` silently last-wins instead of multi-fetching, and (c) the one-call path (`list --include_description`) is undiscoverable. Token efficiency is again the driver — same mission as T20/T22–T26, now on the *read* round-trip rather than the response shape.
 
