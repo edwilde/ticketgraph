@@ -9,7 +9,7 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 
 | Done ✅ | In progress | Open |
 |---|---|---|
-| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26 | _(none)_ | T27 |
+| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26 | _(none)_ | T27, T28 |
 
 **T1–T18 complete (2026-05-29).** 410 tests across 42 files, deterministically green (verified 12/12 consecutive full-suite runs). 21 MCP tools, demo + sample parsers (both 100% heading parse on the live files), plugin manifest + install docs, README + usage + migration docs, and GitHub Actions CI (ubuntu + macOS).
 
@@ -18,6 +18,8 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 **T21 (user-requested, 2026-05-30):** `tickets.export` — a timestamp-stamped, banner-labelled `.ai/TICKETS.md` snapshot. Consciously reverses the spec's "no markdown export / TICKETS.md not regenerated" non-goal; the loud generated-at banner is the drift mitigation that earns the reversal.
 
 **T20 landed (2026-06-03, four-stage pipeline):** lean default response shapes — write tools (`add`/`update`/`set_parent`/`append_to_description`) now return a lean flat shape by default with the full row via `full: true`, and `tickets.get` omits `recent_audit` unless `include_audit: true`. Measured default-shape byte reductions: add −73%, update −68%, set_parent −84%, append −80%, get −76%. No datum unrecoverable (opt-in restores it). 643 tests green. Findings: `.ai/2026-06-03-T20-response-shape-findings.md`; plan + review record: `.ai/implementation-plans/T20-token-efficiency-response-shapes.md`. **Key learning:** token cost is path-dependent — extra fields are free on the CLI *compact* path (6 columns rendered) but billed in full on the MCP / `--format json` path; trimming `TResult` is the only lever for the JSON/MCP paths.
+
+**T28 (user-requested, 2026-06-04):** the README leads with the MCP even though the CLI is the preferred default — restructure it CLI-first, and add a `ticketgraph mcp` command to start the server (symmetric with the `--mcp` flag, which stays for back-compat). Starting the server is a *mode*, not a registry tool, so it lives in the entry-point switch (`server.ts`), not the CLI catalogue.
 
 **T27 (user-requested, 2026-06-03):** reduce the token cost of the common "outstanding tickets" read path. A real session burned ~3k tokens / 9 Bash calls to answer it, because (a) compact `get` renders the list row and hides the description, (b) repeated `--id` silently last-wins instead of multi-fetching, and (c) the one-call path (`list --include_description`) is undiscoverable. Token efficiency is again the driver — same mission as T20/T22–T26, now on the *read* round-trip rather than the response shape.
 
@@ -470,6 +472,39 @@ A second thin front-end over the existing `makeToolRegistry` so every tool is re
 - Findings note in `.ai/` measuring the before/after call-count + token cost of the "outstanding tickets" scenario on a seeded fixture (the 9-calls→target comparison).
 
 **Notes:** four-stage pipeline. Relates to T20 (response shapes) and T24 (output formatting). The P1 pair (`get` body in compact + multi-id) is the bulk of the win; the rest is discoverability polish. Effort **3**: formatter change is localised, multi-id is a flag-layer tweak, docs are cheap.
+
+---
+
+### T28 — README CLI-first restructure + `ticketgraph mcp` command
+**Status:** Open. **Type:** enhancement (docs + small CLI surface). **Effort:** 2.
+**Found by:** user (2026-06-04). The README still front-loads the MCP server, but since v0.4.0 the **CLI is the default and the MCP is opt-in**. Two changes, one ticket: (1) a friendly `ticketgraph mcp` command to start the server, and (2) a CLI-first README.
+
+**Part A — `ticketgraph mcp` command.**
+Today the MCP stdio server boots on `argv.length === 0 || argv[0] === "--mcp"` (`server.ts:110`). Starting the server is a *mode*, not a registry tool, so the CLI catalogue (registry-derived in `buildCatalogue`) is the wrong layer — extend the entry-point switch instead.
+- Add `argv[0] === "mcp"` as a third `serverMode` trigger (`server.ts:110`). Purely additive: bare-invocation and `--mcp` keep working so existing MCP client configs / `docs/install.md` registration stay valid.
+- Make `mcp` discoverable: the top-level help footer (`commands.ts:65`, currently "Run with --mcp or no arguments to start the MCP server.") should present `ticketgraph mcp` as the preferred form, noting `--mcp`/no-args still work.
+- **Don't** route `mcp` through `runCli`/`dispatch`/the catalogue — it has no tool, no `--format`, no flags; it hands off to `main()`. Keep it in the `server.ts` entry switch.
+- **Don't** change the existing stdio launch contract (the comment at `server.ts:105-108` — MCP clients launch over stdio and that path must keep working).
+
+**Part B — CLI-first README.**
+Restructure so the CLI is the lede and MCP is a short optional section:
+1. Title + token-economy problem (keep).
+2. Quick start (CLI): install/build → `ticketgraph list` / `next` / `search` examples.
+3. Token-efficiency USP.
+4. Common commands table (read/write).
+5. Using with Claude — the one-line `CLAUDE.md` pointer.
+6. MCP server (optional) — brief: "ticketgraph also speaks MCP; start it with `ticketgraph mcp`. Opt-in — see docs/install.md."
+7. Migration / Development / Licence (keep).
+- Keep the accurate `As of v0.4.0…` historical phrasing; don't rewrite what shipped when. Update tool-count claims only if stale.
+
+**Acceptance:**
+- `ticketgraph mcp` starts the stdio MCP server (verified by a spawn test that the process boots and responds to an MCP `initialize`/`tools/list`, then shuts down on stdin close — mirror the existing spawn-test pattern); `--mcp` and no-args still start it (regression-tested).
+- `ticketgraph --help` lists/points to `mcp` as the way to start the server.
+- README leads with the CLI; the MCP appears only as a demoted optional section that references `ticketgraph mcp` and `docs/install.md`.
+- `docs/install.md` "Enabling the MCP server" mentions `ticketgraph mcp` as the launch command (keeping the existing forms documented).
+- `npm run build` + full suite green. Version bump (likely **0.6.0** — new CLI surface) with tag + GitHub release per `CLAUDE.md`.
+
+**Notes:** four-stage pipeline. Part A is a ~1-line entry-switch change + help text + a spawn test; Part B is docs. Relates to T22–T26 (the dual-mode CLI this documents) and T25 (generated `--help`/discoverability). Effort **2**.
 
 ---
 
