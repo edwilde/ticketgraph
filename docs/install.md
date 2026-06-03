@@ -97,12 +97,16 @@ To enable it, restore `.mcp.json` in the plugin root with the following content:
 }
 ```
 
-Then run `/reload-plugins` (or restart Claude Code). The binary also starts the MCP server when invoked with no arguments or with `--mcp`:
+Then run `/reload-plugins` (or restart Claude Code). To start the MCP stdio server directly, the preferred form is the `mcp` command; `--mcp` and no-args are equivalent (and are what MCP clients launch over stdio):
 
 ```sh
-node dist/server.js --mcp   # explicit MCP stdio server
-node dist/server.js         # same — no-args also starts MCP
+ticketgraph mcp             # preferred — start the MCP stdio server
+node dist/server.js mcp     # same, via the built artifact
+node dist/server.js --mcp   # equivalent (flag form)
+node dist/server.js         # equivalent (no-args also starts MCP)
 ```
+
+`mcp` is a launch mode, not a CLI command, so it ignores trailing flags — `ticketgraph mcp --help` starts the server rather than printing help.
 
 ---
 
@@ -159,7 +163,7 @@ claude mcp get ticketgraph
 
 Inside a Claude Code session:
 - `/mcp` — shows all connected servers; `ticketgraph` should appear as connected.
-- Call tool `tickets.ping` — returns `{ ok: true, version: "0.5.0", db_path: "...", schema_version: 1 }`.
+- Call tool `tickets.ping` — returns `{ ok: true, version: "0.6.0", db_path: "...", schema_version: 1 }`.
 
 ---
 

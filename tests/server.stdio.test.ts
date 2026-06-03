@@ -28,10 +28,10 @@ const tmpDirs: string[] = [];
 // Spawn against an isolated temp DB — never touch the live ~/.claude/tickets.db
 // (spec §16: tests never touch the live DB). Without this the server's startup
 // openDb() would open the real database.
-function spawnServer(): ChildProcess {
+function spawnServer(args: string[] = []): ChildProcess {
   const dir = mkdtempSync(join(tmpdir(), "ticketgraph-stdio-"));
   tmpDirs.push(dir);
-  return spawn("node", [SERVER], {
+  return spawn("node", [SERVER, ...args], {
     stdio: ["pipe", "pipe", "pipe"],
     cwd: ROOT,
     env: { ...process.env, TICKETGRAPH_DB_PATH: join(dir, "test.db") },
@@ -119,5 +119,35 @@ await sendRequest(child, "initialize", {
     const payload = JSON.parse(content[0]!["text"] as string) as Record<string, unknown>;
     expect(payload["ok"]).toBe(true);
     expect(payload["version"]).toMatch(/^\d+\.\d+\.\d+/);
+  }, 20000);
+
+  it("`mcp` subcommand boots the MCP server and initialize returns name ticketgraph", async () => {
+    child = spawnServer(["mcp"]);
+    await waitForServerReady(child);
+
+    const resp = await sendRequest(child, "initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "test-client", version: "0.0.1" },
+    }) as Record<string, unknown>;
+
+    const result = resp["result"] as Record<string, unknown>;
+    const serverInfo = result["serverInfo"] as Record<string, unknown>;
+    expect(serverInfo["name"]).toBe("ticketgraph");
+  }, 20000);
+
+  it("`--mcp` flag still boots the MCP server (regression)", async () => {
+    child = spawnServer(["--mcp"]);
+    await waitForServerReady(child);
+
+    const resp = await sendRequest(child, "initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "test-client", version: "0.0.1" },
+    }) as Record<string, unknown>;
+
+    const result = resp["result"] as Record<string, unknown>;
+    const serverInfo = result["serverInfo"] as Record<string, unknown>;
+    expect(serverInfo["name"]).toBe("ticketgraph");
   }, 20000);
 });

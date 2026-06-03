@@ -102,12 +102,12 @@ process.on("uncaughtException", (err) => {
   logger.error("uncaughtException", { err: String(err) });
 });
 
-// Dual-mode entry. No-args or a leading `--mcp` boots the MCP stdio server
-// (the path MCP clients launch over stdio — must NOT change). Anything else is
+// Dual-mode entry. No-args, a leading `--mcp`, or a leading `mcp` boots the MCP
+// stdio server (the path MCP clients launch over stdio — must NOT change). Anything else is
 // a CLI invocation: runCli returns an exit code and never touches the T18
 // shutdown handlers, so the process exits naturally instead of waiting on stdin.
 const argv = process.argv.slice(2);
-const serverMode = argv.length === 0 || argv[0] === "--mcp";
+const serverMode = argv.length === 0 || argv[0] === "--mcp" || argv[0] === "mcp";
 
 if (serverMode) {
   main().catch((err) => {

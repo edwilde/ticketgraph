@@ -36,7 +36,7 @@ export function buildCatalogue(
  * Render top-level help, derived from the registry: one line per command
  * (`<command> — <description>`), a `global flags:` section documenting the
  * flags every command shares, a pointer to per-command help, and a note that
- * `--mcp`/no-args runs the MCP server. The command list stays registry-derived;
+ * `ticketgraph mcp` (or `--mcp`/no-args) runs the MCP server. The command list stays registry-derived;
  * per-command detail lives in {@link buildCommandHelp} (`<command> --help`).
  */
 export function buildHelpText(registry: Map<string, AnyTool>): string {
@@ -62,7 +62,7 @@ export function buildHelpText(registry: Map<string, AnyTool>): string {
   lines.push("  --version  print the version and exit");
   lines.push("  --help  show this help; <command> --help shows per-command detail");
   lines.push("");
-  lines.push("Run with --mcp or no arguments to start the MCP server.");
+  lines.push("Start the MCP server with `ticketgraph mcp` (or `--mcp` / no arguments).");
   return lines.join("\n") + "\n";
 }
 

@@ -126,6 +126,12 @@ describe("buildHelpText — top-level (TASK 2)", () => {
     expect(out).toContain("--mcp");
   });
 
+  it("documents the preferred `ticketgraph mcp` launch form alongside --mcp", () => {
+    const out = buildHelpText(stubRegistry(2));
+    expect(out).toMatch(/ticketgraph mcp/);
+    expect(out).toContain("--mcp");
+  });
+
   it("real registry: contains list, add, and ping command names", () => {
     const out = buildHelpText(buildRegistry());
     expect(out).toContain("  list —");
