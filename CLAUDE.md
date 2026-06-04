@@ -1,4 +1,4 @@
-Token-cheap ticket queries via `ticketgraph <command>` (read: list, get, search, next, stats, changed_since, blockers_of, children_of, related, validate, ping; `ticketgraph --help` for all flags). Prefer this over reading `.ai/TICKETS.md`. Use `--format json` to parse output. MCP server is opt-in (see docs/install.md).
+This project's own development tickets are tracked in `.ai/TICKETS.md` (hand-maintained markdown) — read that file directly. This repo is **not** registered in the ticketgraph DB, so the `ticketgraph` CLI/MCP won't find these tickets; `ticketgraph` is the *product* this repo builds, not the tracker for its own work. The live status table at the top of `.ai/TICKETS.md` is the source of truth for what's open/done.
 
 ## Git workflow
 
