@@ -209,9 +209,15 @@ describe("formatResult — single ticket (add / get)", () => {
     expect(out).toContain("T10");
   });
 
-  it("get compact stays under a single-ticket token budget", () => {
-    const bytes = Buffer.byteLength(formatResult("get", { ticket: ticketFull() }, "compact"));
-    expect(bytes).toBeLessThan(600);
+  it("get compact formatting overhead is bounded (description is verbatim payload, chrome stays lean)", () => {
+    // The description is rendered verbatim — it's the payload you asked for, so total
+    // size scales with it and can't be capped. What T27 cares about is that the
+    // *formatting overhead* (scalars/title/tags/relations labels) stays small. Pin it
+    // by rendering a large body and asserting block size ≈ description size + a bounded constant.
+    const body = "x".repeat(2000);
+    const bytes = Buffer.byteLength(formatResult("get", { ticket: ticketFull({ description: body }) }, "compact"));
+    const overhead = bytes - Buffer.byteLength(body);
+    expect(overhead).toBeLessThan(250);
   });
 
   it("get batch renders each ticket", () => {
