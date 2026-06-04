@@ -29,6 +29,7 @@ export interface NextResult {
     age_days: number;
     no_open_blockers: true;
   } | null;
+  message?: string;
 }
 
 export function makeNextTool(db: Database.Database, getClientRoots: GetClientRoots = NO_ROOTS): Tool<NextArgs, NextResult> {
@@ -38,7 +39,8 @@ export function makeNextTool(db: Database.Database, getClientRoots: GetClientRoo
       "Return the highest-priority open ticket that has no open blockers. " +
       "A blocker whose status is done or deferred does not count. " +
       "Sort order: priority ASC NULLS LAST, created_at ASC, id ASC. " +
-      "Returns { ticket, reason } or { ticket: null, reason: null } when nothing qualifies.",
+      "Returns { ticket, reason } on a hit, or { ticket: null, reason: null, message } when nothing qualifies — " +
+      "the message explains the board state (counts of non-done tickets, or that the board is clear).",
     inputSchema: {
       type: "object",
       properties: {
@@ -87,7 +89,20 @@ export function makeNextTool(db: Database.Database, getClientRoots: GetClientRoo
       const row = db.prepare(sql).get(params) as TicketRow | undefined;
 
       if (!row) {
-        return { ticket: null, reason: null };
+        const counts = db
+          .prepare(
+            `SELECT status, COUNT(*) AS n FROM tickets WHERE project_id = ? AND status != 'done' GROUP BY status`,
+          )
+          .all(projectId) as { status: string; n: number }[];
+
+        const message =
+          counts.length === 0
+            ? "no open tickets — board is clear"
+            : `no open tickets; ${counts
+                .map((c) => `${c.n} ${c.status}`)
+                .join(", ")} — run \`ticketgraph list --status outstanding\``;
+
+        return { ticket: null, reason: null, message };
       }
 
       const now = Date.now();

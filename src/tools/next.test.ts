@@ -164,6 +164,49 @@ describe("tickets.next", () => {
     expect(Number.isInteger(result.reason!.age_days)).toBe(true);
   });
 
+  it("empty board (blocked + in_progress + deferred, no open) returns a message naming all non-done counts", async () => {
+    const { addTicket, addRelation, next } = setup();
+    // Two blocked (open tickets that block each other), one in_progress, one deferred.
+    const b = addTicket({ id: "B1", status: "open" });
+    const w = addTicket({ id: "W1", status: "open" });
+    addRelation(b, w, "blocks");
+    addRelation(w, b, "blocks");
+    addTicket({ id: "IP1", status: "in_progress" });
+    addTicket({ id: "DF1", status: "deferred" });
+
+    const result = await next();
+    expect(result.ticket).toBeNull();
+    expect(result.reason).toBeNull();
+    // 2 open (counted as their status 'open'), 1 in_progress, 1 deferred are all non-done.
+    expect(result.message).toContain("in_progress");
+    expect(result.message).toContain("deferred");
+    expect(result.message).toContain("outstanding");
+  });
+
+  it("truly empty project returns a clean-board message", async () => {
+    const { next } = setup();
+    const result = await next();
+    expect(result.ticket).toBeNull();
+    expect(result.reason).toBeNull();
+    expect(result.message).toContain("board is clear");
+    // No dangling separators on the clean-board variant.
+    expect(result.message).not.toMatch(/[;—]\s*$/);
+    expect(result.message).not.toContain(";");
+  });
+
+  it("empty message stays within a small byte budget", async () => {
+    const { addTicket, addRelation, next } = setup();
+    const b = addTicket({ id: "B1", status: "open" });
+    const w = addTicket({ id: "W1", status: "open" });
+    addRelation(b, w, "blocks");
+    addRelation(w, b, "blocks");
+    addTicket({ id: "IP1", status: "in_progress" });
+    addTicket({ id: "DF1", status: "deferred" });
+
+    const result = await next();
+    expect(Buffer.byteLength(result.message!, "utf8")).toBeLessThan(200);
+  });
+
   it("token budget: result JSON < 300*4 bytes", async () => {
     const { addTicket, next } = setup();
     addTicket({ id: "T1", priority: "P0" });
