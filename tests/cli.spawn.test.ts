@@ -285,6 +285,30 @@ describe("CLI spawn integration (dist/server.js)", () => {
     expect(parsed.ticket.title).toBe("Seed");
   });
 
+  // Acceptance 8b: `get <id1> <id2> <id3>` (multiple positional ids) → exit 0,
+  // returns all three tickets as a batch. Proves the T27 multi-id fix end-to-end:
+  // bare positionals fold into `ids` instead of throwing the >1-positional error.
+  it("get <id1> <id2> <id3> --project cli_spawn (multiple positionals) → exit 0, returns all three", { timeout: 5000 }, async () => {
+    seedProject();
+    // Seed THREE tickets — the fixture project starts empty, so capture each
+    // generated id rather than assuming T1/T2/T3 exist.
+    const ids: string[] = [];
+    for (const title of ["One", "Two", "Three"]) {
+      const created = await runCliSpawn(["add", "--format", "json", "--project", "cli_spawn", "--title", title]);
+      ids.push((JSON.parse(created.stdout) as { id: string }).id);
+    }
+
+    const r = await runCliSpawn(["get", ids[0]!, ids[1]!, ids[2]!, "--format", "json", "--project", "cli_spawn"]);
+
+    expect(r.code).toBe(0);
+    expectNoErrorOnStderr(r.stderr);
+    const parsed = JSON.parse(r.stdout) as { tickets: Array<{ id: string }> };
+    expect(parsed.tickets).toHaveLength(3);
+    for (const ticket of parsed.tickets) {
+      expect(ids).toContain(ticket.id);
+    }
+  });
+
   // Acceptance 9: `--version` → exit 0, semver on stdout; `--help` → exit 0, command list.
   it("--version → exit 0 with semver on stdout", { timeout: 5000 }, async () => {
     seedProject();
