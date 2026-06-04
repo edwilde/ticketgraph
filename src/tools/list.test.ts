@@ -99,6 +99,60 @@ describe("tickets.list", () => {
     expect(result.count).toBe(3);
   });
 
+  it("status: 'outstanding' includes deferred and excludes done", async () => {
+    const { db, tool } = setup();
+    insertTicket(db, "T1", { status: "open" });
+    insertTicket(db, "T2", { status: "in_progress" });
+    insertTicket(db, "T3", { status: "blocked" });
+    insertTicket(db, "T4", { status: "deferred" });
+    insertTicket(db, "T5", { status: "done" });
+
+    const result = await tool.handle(
+      tool.parseArgs({ project: "proj1", status: "outstanding" }),
+    );
+    const ids = (result.rows as Array<{ id: string }>).map((r) => r.id);
+    expect(ids).toContain("T1");
+    expect(ids).toContain("T2");
+    expect(ids).toContain("T3");
+    expect(ids).toContain("T4"); // deferred is NOT done → outstanding
+    expect(ids).not.toContain("T5"); // done is excluded
+    expect(result.count).toBe(4);
+  });
+
+  it("status: 'outstanding' is a superset of the default filter", async () => {
+    const { db, tool } = setup();
+    insertTicket(db, "T1", { status: "open" });
+    insertTicket(db, "T2", { status: "in_progress" });
+    insertTicket(db, "T3", { status: "blocked" });
+    insertTicket(db, "T4", { status: "deferred" });
+    insertTicket(db, "T5", { status: "done" });
+
+    const def = await tool.handle(tool.parseArgs({ project: "proj1" }));
+    const out = await tool.handle(
+      tool.parseArgs({ project: "proj1", status: "outstanding" }),
+    );
+    const defIds = new Set((def.rows as Array<{ id: string }>).map((r) => r.id));
+    const outIds = (out.rows as Array<{ id: string }>).map((r) => r.id);
+    for (const id of defIds) {
+      expect(outIds).toContain(id);
+    }
+    expect(out.count).toBeGreaterThan(def.count);
+  });
+
+  it("status: <bogus> throws InvalidParams (typo fails loudly, not silently empty)", async () => {
+    const { tool } = setup();
+    expect(() => tool.parseArgs({ project: "proj1", status: "outstandng" })).toThrow(
+      /outstandng/,
+    );
+  });
+
+  it("status as array with bogus member throws InvalidParams", async () => {
+    const { tool } = setup();
+    expect(() =>
+      tool.parseArgs({ project: "proj1", status: ["open", "bogus"] }),
+    ).toThrow(/bogus/);
+  });
+
   it("status as array returns matching statuses", async () => {
     const { db, tool } = setup();
     insertTicket(db, "T1", { status: "open" });

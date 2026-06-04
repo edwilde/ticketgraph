@@ -5,6 +5,9 @@ import { NO_ROOTS, type GetClientRoots } from "../lib/roots.js";
 import type { Tool } from "./types.js";
 
 const DEFAULT_STATUS_FILTER = ["open", "in_progress", "blocked"];
+const VALID_STATUSES = new Set(["open", "in_progress", "blocked", "done", "deferred"]);
+// Sentinels accepted in addition to the concrete statuses (see handle()).
+const STATUS_SENTINELS = new Set(["all", "outstanding"]);
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
@@ -34,12 +37,15 @@ export function makeListTool(db: Database.Database, getClientRoots: GetClientRoo
     name: "tickets.list",
     description:
       "List tickets with optional filters. Default status filter: open, in_progress, blocked. " +
-      "Pass status: 'all' to include all statuses. Default limit 50 (max 200).",
+      "Pass status: 'all' for every status, or 'outstanding' for everything not done. " +
+      "Default limit 50 (max 200).",
     inputSchema: {
       type: "object",
       properties: {
         project: { type: "string" },
         status: {
+          description:
+            "open/in_progress/blocked (default), or 'all', or 'outstanding' (everything not done)",
           oneOf: [
             { type: "string" },
             { type: "array", items: { type: "string" } },
@@ -78,9 +84,32 @@ export function makeListTool(db: Database.Database, getClientRoots: GetClientRoo
         throw new McpError(ErrorCode.InvalidParams, "offset must be a non-negative integer.");
       }
 
+      // Validate status: a string must be a known status or a sentinel
+      // (all/outstanding); an array must contain only known statuses. This
+      // closes a footgun where a typo (e.g. "outstandng") silently matched
+      // zero rows instead of failing loudly.
+      const statusRaw = r["status"];
+      if (typeof statusRaw === "string") {
+        if (!VALID_STATUSES.has(statusRaw) && !STATUS_SENTINELS.has(statusRaw)) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `status must be one of: ${[...VALID_STATUSES, ...STATUS_SENTINELS].join(", ")} (got '${statusRaw}')`,
+          );
+        }
+      } else if (Array.isArray(statusRaw)) {
+        for (const s of statusRaw) {
+          if (typeof s !== "string" || !VALID_STATUSES.has(s)) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              `status array must contain only: ${[...VALID_STATUSES].join(", ")} (got '${String(s)}')`,
+            );
+          }
+        }
+      }
+
       return {
         project: typeof r["project"] === "string" ? r["project"] : undefined,
-        status: r["status"] as string | string[] | undefined,
+        status: statusRaw as string | string[] | undefined,
         priority: typeof r["priority"] === "string" ? r["priority"] : undefined,
         type: typeof r["type"] === "string" ? r["type"] : undefined,
         epic: typeof r["epic"] === "string" ? r["epic"] : undefined,
@@ -112,6 +141,12 @@ export function makeListTool(db: Database.Database, getClientRoots: GetClientRoo
       const statusArg = args.status;
       if (statusArg === "all") {
         // No status filter.
+      } else if (statusArg === "outstanding") {
+        // "outstanding" = everything not done. Implemented as != 'done'
+        // rather than the spec's enumerated open/in_progress/blocked/deferred:
+        // under the closed 5-status enum the two are equivalent, and != 'done'
+        // is superset-safe if a new non-terminal status is ever added.
+        whereClauses.push("t.status != 'done'");
       } else if (Array.isArray(statusArg) && statusArg.length > 0) {
         const placeholders = statusArg.map(() => "?").join(", ");
         whereClauses.push(`t.status IN (${placeholders})`);

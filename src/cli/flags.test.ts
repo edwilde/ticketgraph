@@ -40,6 +40,12 @@ describe("parseFlags — type-driven coercion", () => {
     expect(parseFlags(listSchema, ["--status", "open"]).values).toEqual({ status: "open" });
   });
 
+  it("--status outstanding (oneOf, once) → scalar string, not array", () => {
+    expect(parseFlags(listSchema, ["--status", "outstanding"]).values).toEqual({
+      status: "outstanding",
+    });
+  });
+
   it("--status open --status blocked (oneOf, repeated) → array", () => {
     expect(
       parseFlags(listSchema, ["--status", "open", "--status", "blocked"]).values,
