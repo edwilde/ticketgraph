@@ -178,6 +178,8 @@ describe("tickets.next", () => {
     expect(result.ticket).toBeNull();
     expect(result.reason).toBeNull();
     // 2 open (counted as their status 'open'), 1 in_progress, 1 deferred are all non-done.
+    expect(result.message).toContain("nothing ready");
+    expect(result.message).not.toContain("no open tickets");
     expect(result.message).toContain("in_progress");
     expect(result.message).toContain("deferred");
     expect(result.message).toContain("outstanding");

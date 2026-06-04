@@ -97,10 +97,10 @@ export function makeNextTool(db: Database.Database, getClientRoots: GetClientRoo
 
         const message =
           counts.length === 0
-            ? "no open tickets — board is clear"
-            : `no open tickets; ${counts
+            ? "nothing ready to work on — board is clear"
+            : `nothing ready to work on; ${counts
                 .map((c) => `${c.n} ${c.status}`)
-                .join(", ")} — run \`ticketgraph list --status outstanding\``;
+                .join(", ")} non-done — run \`ticketgraph list --status outstanding\``;
 
         return { ticket: null, reason: null, message };
       }
