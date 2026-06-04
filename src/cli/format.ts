@@ -200,6 +200,89 @@ function scalarRef(value: unknown): string {
   return cell(value);
 }
 
+/** Scalar header fields for a ticket detail block, in display order. */
+const DETAIL_SCALARS = [
+  "id",
+  "status",
+  "priority",
+  "type",
+  "effort",
+  "epic",
+  "parent_id",
+  "created_by",
+  "created_at",
+  "closed_at",
+] as const;
+
+/**
+ * Render one full ticket (the get/TicketFull shape) as a multi-line detail
+ * block: a scalar header line, the title, the description VERBATIM, tags, and
+ * relations grouped by direction+kind (reusing the `kind->ids` convention from
+ * compactObject). recent_audit is rendered only when present.
+ */
+function ticketDetail(t: Record<string, unknown>): string {
+  const lines: string[] = [];
+
+  lines.push(
+    DETAIL_SCALARS.filter((k) => k in t)
+      .map((k) => `${k}=${cell(t[k])}`)
+      .join(" "),
+  );
+
+  if ("title" in t) lines.push(`title: ${cell(t["title"])}`);
+  if ("description" in t) lines.push(`description: ${cell(t["description"])}`);
+
+  const tags = t["tags"];
+  if (Array.isArray(tags)) lines.push(`tags=[${tags.map(cell).join(",")}]`);
+
+  const relations = t["relations"];
+  if (isObject(relations)) {
+    for (const dir of ["outgoing", "incoming"] as const) {
+      const group = relations[dir];
+      if (!isObject(group)) continue;
+      for (const [kind, refs] of Object.entries(group)) {
+        if (Array.isArray(refs) && refs.length > 0) {
+          lines.push(`${dir}.${kind}->${refs.map(scalarRef).join(",")}`);
+        }
+      }
+    }
+  }
+
+  const audit = t["recent_audit"];
+  if (Array.isArray(audit)) {
+    for (const entry of audit) {
+      if (isObject(entry)) {
+        lines.push(
+          `audit: ${cell(entry["changed_at"])} ${cell(entry["field"])} ${cell(entry["old_value"])}->${cell(entry["new_value"])}`,
+        );
+      }
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Render a get result (single `{ticket}` or batch `{tickets:[…]}`) as one or
+ * more detail blocks. compact and table share this renderer (a single ticket is
+ * not a multi-row table). A null entry renders a clear not-found line.
+ */
+function formatGetDetail(result: unknown, _fmt: Format): string {
+  if (!isObject(result)) return cell(result);
+
+  const NOT_FOUND = "(ticket not found)";
+
+  if (Array.isArray(result["tickets"])) {
+    const tickets = result["tickets"] as unknown[];
+    return tickets
+      .map((t) => (isObject(t) ? ticketDetail(t) : NOT_FOUND))
+      .join("\n\n");
+  }
+
+  const ticket = result["ticket"];
+  return isObject(ticket) ? ticketDetail(ticket) : NOT_FOUND;
+}
+
 /** table: a non-row object as aligned `key   value` pairs. */
 function tableObject(result: Record<string, unknown>): string {
   const pairs = Object.entries(result).map(([k, v]) => [
@@ -218,6 +301,10 @@ function tableObject(result: Record<string, unknown>): string {
  */
 export function formatResult(cliName: string, result: unknown, fmt: Format): string {
   if (fmt === "json") return JSON.stringify(result);
+
+  // get renders a full detail block, not the truncated 6-col list row. This
+  // MUST precede rowsOf, which already wraps `{ticket}`/`{tickets}` as rows.
+  if (cliName === "get") return formatGetDetail(result, fmt);
 
   const rows = rowsOf(result);
   if (rows !== null) {

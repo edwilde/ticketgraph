@@ -162,6 +162,31 @@ describe("formatResult — stats (count-map)", () => {
   });
 });
 
+/** A full ticket (the get/TicketFull shape: description, tags, relations). */
+function ticketFull(over: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: "T9",
+    project_id: "proj1",
+    title: "Add a timeout parameter",
+    description: "Thread a timeout through fetchData and default it to 30s.",
+    status: "open",
+    priority: "high",
+    type: "feature",
+    effort: 3,
+    epic: null,
+    parent_id: null,
+    created_by: "ed",
+    created_at: "2026-01-01T00:00:00.000Z",
+    closed_at: null,
+    tags: ["backend", "net"],
+    relations: {
+      outgoing: { blocks: [{ id: "T10", note: null }] },
+      incoming: {},
+    },
+    ...over,
+  };
+}
+
 describe("formatResult — single ticket (add / get)", () => {
   it("compact add: one ticket-row line", () => {
     const out = formatResult("add", { ticket: ticketRow() }, "compact");
@@ -169,9 +194,24 @@ describe("formatResult — single ticket (add / get)", () => {
     expect(out).toBe("T1 open high feature 3 First ticket");
   });
 
-  it("compact get: single {ticket} renders one line", () => {
-    const out = formatResult("get", { ticket: ticketRow({ id: "T9" }) }, "compact");
-    expect(out.startsWith("T9 ")).toBe(true);
+  it("compact get: single {ticket} renders a detail block (not the 6-col row)", () => {
+    const out = formatResult("get", { ticket: ticketFull() }, "compact");
+    // Multi-line detail, not the single one-line list row.
+    expect(out.includes("\n")).toBe(true);
+    expect(out).not.toBe("T9 open high feature 3 Add a timeout parameter");
+    expect(out).toContain("T9");
+  });
+
+  it("get compact shows description, tags and relations", () => {
+    const out = formatResult("get", { ticket: ticketFull() }, "compact");
+    expect(out).toContain("Thread a timeout through fetchData and default it to 30s.");
+    expect(out).toContain("backend");
+    expect(out).toContain("T10");
+  });
+
+  it("get compact stays under a single-ticket token budget", () => {
+    const bytes = Buffer.byteLength(formatResult("get", { ticket: ticketFull() }, "compact"));
+    expect(bytes).toBeLessThan(600);
   });
 });
 

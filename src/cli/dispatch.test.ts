@@ -75,7 +75,7 @@ describe("dispatch — success", () => {
     expect(() => JSON.parse(out.stdout) as unknown).toThrow();
   });
 
-  it("get T1 (compact default) renders a single ticket-row line", async () => {
+  it("get T1 (compact default) renders the full detail block", async () => {
     const { db } = setup();
     insertTicket(db, "T1");
     const tool = makeGetTool(db);
@@ -83,9 +83,10 @@ describe("dispatch — success", () => {
     const out = await dispatch(tool, "get", ["T1", "--project", "proj1"]);
 
     expect(out.code).toBe(0);
-    // compact single-ticket: one line, starts with the id.
-    expect(out.stdout.startsWith("T1 ")).toBe(true);
-    expect(out.stdout.trimEnd().includes("\n")).toBe(false);
+    // compact single-ticket: multi-line detail block carrying the description.
+    expect(out.stdout).toContain("id=T1");
+    expect(out.stdout).toContain("Desc T1");
+    expect(out.stdout.trimEnd().includes("\n")).toBe(true);
   });
 
   it("get T1 with --format json returns the ticket payload", async () => {
