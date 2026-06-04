@@ -22,10 +22,12 @@ If `ticketgraph` is not on PATH, it isn't set up here — fall back to whatever 
 | Need | Command |
 |---|---|
 | What to work on next (highest priority, unblocked) | `ticketgraph next` (filter by type: `ticketgraph next --type bug`) |
-| Open tickets (default: open/in_progress/blocked) | `ticketgraph list` |
-| Filtered list | `ticketgraph list --type bug --priority 1 --status all` |
-| One ticket (full detail) | `ticketgraph get T22` |
-| Several tickets | `ticketgraph get --ids T1 T2 T3` |
+| Open tickets (default: open/in_progress/blocked; excludes deferred+done) | `ticketgraph list` |
+| Everything not done, incl. deferred | `ticketgraph list --status outstanding` |
+| Outstanding tickets with descriptions (one call) | `ticketgraph list --status outstanding --include_description --format json` |
+| Filtered list | `ticketgraph list --type bug --priority P1 --status all` |
+| One ticket (full detail: title, description, tags, relations) | `ticketgraph get T22` |
+| Several tickets | `ticketgraph get T1 T2 T3` or `ticketgraph get --ids T1 T2 T3` |
 | Full-text search (BM25, title weighted 3×) | `ticketgraph search --q "auth redirect"` |
 | Counts by status/priority/epic/type/effort | `ticketgraph stats` |
 | What blocks a ticket (recursive) | `ticketgraph blockers_of T5` |
@@ -42,18 +44,29 @@ Mutating commands (`add`, `add_many`, `update`, `link`, `unlink`, `set_parent`, 
 
 Write tools return only the data you can't reconstruct — they do **not** echo the whole ticket row back. `add` → `{ id, status, created_at }`; `update` → `{ id, changed, closed_at?, audit_entries }`; `set_parent` → `{ id, parent_id, changed }`; `append_to_description` → `{ id, description }`. This is the cheap path — keep it. Only add `--full` when you genuinely need the complete row back in the same call (rare; you usually just sent those fields).
 
-`get` returns the full ticket plus tags and relations by default, but **omits audit history** to stay cheap. Add `--include_audit` only when you actually need the recent audit entries.
+`get` returns the full ticket plus tags and relations by default (description included, in the default compact format — no `--format json` needed), but **omits audit history** to stay cheap. Add `--include_audit` only when you actually need the recent audit entries.
 
 ## Key flags (global)
 
 - `--format json` — machine-readable output. **Use this whenever you will parse the result.** Default is `compact` (terse, for skimming); `table` is for human display.
 - `--project <id>` — target a project. Omit to resolve from the current directory; use `--project all` on read commands to query across all projects.
-- `<id>` is positional for `get`, `blockers_of`, `children_of`, `related` (e.g. `ticketgraph get T22`).
+- `<id>` is positional for `get`, `blockers_of`, `children_of`, `related` (e.g. `ticketgraph get T22`). `get` also accepts multiple bare positionals: `ticketgraph get T1 T2 T3`.
 - `ticketgraph --help` lists every command; `ticketgraph <command> --help` shows that command's exact flags.
+
+## Status filter values
+
+- Default (`list` with no `--status`): `open`, `in_progress`, `blocked` — **deferred and done are excluded**.
+- `--status outstanding`: everything not done — open, in_progress, blocked, **and deferred**.
+- `--status all`: every status including done.
+- `--status done`: only done tickets.
 
 ## Common mistakes
 
 - Reading or grepping `.ai/TICKETS.md` to answer a query → use the CLI; the markdown is a generated snapshot, not the store.
 - Parsing `compact` output programmatically → add `--format json`.
 - Guessing flag names (especially for write commands) → run `ticketgraph <command> --help`.
+- Using `ticketgraph get` in a loop per ticket → use `ticketgraph get T1 T2 T3` (bare positionals, max 10) or `--ids T1 T2 T3` instead.
+- Calling `get T22` expecting just a summary row → `get` always returns the FULL ticket (description, tags, relations) in the default compact format; no `--format json` needed to read the description.
+- Repeating `--id` (e.g. `--id T1 --id T2`) → this throws an error; use bare positionals or `--ids` for multiple tickets.
+- `next` returns empty → read the `message` field; it explains board state (e.g. "1 deferred non-done") and suggests `ticketgraph list --status outstanding`. Don't re-query blindly.
 - Assuming you must enable the MCP server → you don't. The CLI is the default, token-cheap path. The MCP server is opt-in and adds a persistent per-turn context cost (all tool schemas loaded every turn); only enable it when you specifically want native `tickets.*` tool calls without shell invocations.

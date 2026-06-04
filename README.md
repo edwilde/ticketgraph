@@ -27,10 +27,13 @@ npm run setup
 Then run a command — the CLI is the default interface and exits immediately, with zero MCP overhead:
 
 ```sh
-ticketgraph list                       # open/in_progress/blocked tickets (compact)
-ticketgraph next                       # highest-priority unblocked ticket
+ticketgraph list                       # open/in_progress/blocked (excludes deferred+done)
+ticketgraph list --status outstanding  # everything not done, incl. deferred
+ticketgraph list --status outstanding --include_description --format json  # outstanding with descriptions
+ticketgraph next                       # highest-priority unblocked ticket; empty → read message field
 ticketgraph search --q "auth"          # FTS5 full-text search
-ticketgraph get T7                     # full ticket detail
+ticketgraph get T7                     # full ticket detail (description, tags, relations)
+ticketgraph get T7 T8 T9               # fetch several tickets at once
 ticketgraph stats                      # counts + point totals
 ticketgraph --help                     # all commands and global flags
 ```

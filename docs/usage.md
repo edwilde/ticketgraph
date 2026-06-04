@@ -9,11 +9,14 @@ These examples show the natural-language prompts you give Claude and the tool ca
 As of v0.4.0 ticketgraph ships a dual-mode binary: no arguments / `--mcp` starts the MCP stdio server; `ticketgraph <command> [--flags]` runs a single command and exits.
 
 ```sh
-ticketgraph list                       # open/in_progress/blocked tickets (compact)
-ticketgraph list --status done         # filter by status
-ticketgraph get T7                     # full ticket detail
+ticketgraph list                       # open/in_progress/blocked (excludes deferred+done)
+ticketgraph list --status outstanding  # everything not done, incl. deferred
+ticketgraph list --status outstanding --include_description --format json  # one-call: outstanding with descriptions
+ticketgraph list --status done         # filter to done only
+ticketgraph get T7                     # full ticket detail (description, tags, relations; compact by default)
+ticketgraph get T7 T8 T9               # fetch several tickets at once (bare positionals)
 ticketgraph search --q "auth"          # FTS5 search
-ticketgraph next                       # highest-priority unblocked ticket
+ticketgraph next                       # highest-priority unblocked ticket; empty → read message field
 ticketgraph stats                      # counts + point totals
 ticketgraph --help                     # all commands
 ticketgraph list --help                # per-command flags
