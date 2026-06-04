@@ -97,7 +97,8 @@ function hasArrayBranch(prop: PropSchema): boolean {
  *                    tokens (`--ids T1 T2 T3` ⇒ ["T1","T2","T3"]), and
  *                    repeated flags still accumulate (`--ids a --ids b`)
  *  - oneOf+array   → single use ⇒ scalar, repeated ⇒ array
- *  - otherwise     → string
+ *  - otherwise     → string; repeating a plain scalar flag THROWS (no silent
+ *                    last-wins) — use the array form or positionals instead
  *
  * Supports both `--key value` and `--key=value`. A value starting with `--`
  * is only reachable via the `=` form (the space form treats `--…` as a flag).
@@ -175,6 +176,14 @@ export function parseFlags(
         (values[key] as string[]).push(rawValue);
       }
     } else {
+      // Plain scalar: a repeat used to silently last-win. Reject it instead so
+      // a multi-id intent surfaces as an error rather than dropping values.
+      // (oneOf+array props legitimately repeat — they took the branch above.)
+      if (count > 1) {
+        throw new FlagParseError(
+          `--${key} given more than once; use --ids T1 T2 or positionals`,
+        );
+      }
       values[key] = rawValue;
     }
   }

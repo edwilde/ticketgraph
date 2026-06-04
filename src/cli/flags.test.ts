@@ -108,6 +108,19 @@ describe("parseFlags — type-driven coercion", () => {
       project: "--weird",
     });
   });
+
+  it("repeated --id (plain scalar) throws a clear error", () => {
+    expect(() => parseFlags(getSchema, ["--id", "T1", "--id", "T2"])).toThrow(
+      FlagParseError,
+    );
+    expect(() => parseFlags(getSchema, ["--id", "T1", "--id", "T2"])).toThrow(/--id/);
+  });
+
+  it("repeated --status still folds scalar→array (oneOf unaffected)", () => {
+    expect(
+      parseFlags(listSchema, ["--status", "open", "--status", "blocked"]).values,
+    ).toEqual({ status: ["open", "blocked"] });
+  });
 });
 
 describe("bindPositionals — multi-positional get", () => {
