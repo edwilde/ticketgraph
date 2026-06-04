@@ -260,4 +260,49 @@ No Opus validation pass (no hard trigger; clear siblings exist for every task: T
 
 ## Review record
 
-(populated post-implementation by `review-implementation`)
+**Reviewed:** 2026-06-04
+**Reviewer:** Claude (Opus subagent, fresh context) — independent review-implementation pass
+**Branch:** main
+**Commit at review:** 984513e (released as v0.7.0)
+
+### Verification results
+- **Build:** clean (`tsup` success).
+- **Tests:** 672 passed / 672 (55 files), 0 failed, 0 skipped.
+- **Release:** v0.7.0 tagged AND published as a GitHub release; `package.json` + `.claude-plugin/plugin.json` in sync (drift-guard green). Residual `0.6.0` hits are transitive deps in `package-lock.json` + historical doc text only.
+
+### Build sequence (as-built)
+Tasks landed in the planned order with two-stage review (spec then quality) per task and fix loops where review found issues:
+- **Task 2** (`ee3a0be`) — `list --status outstanding` + status validation. Approved; quality review noted `VALID_STATUSES` is now triplicated (deliberate pre-existing pattern, deferred) and `search.ts` shares the silent-empty footgun (follow-up).
+- **Task 1** (`a4ed8a5` + fix `71e7d6e` + `664b078`) — empty-`next` message. Spec review caught a **blocking** self-contradictory headline (`"no open tickets; 2 open"`); fixed to `"nothing ready to work on"`. Determinism follow-up added `ORDER BY status`.
+- **Task 3a/3b** (`f2cb38a`, `7c932b4` + test reframe `008bcff`) — `get` full-body detail. Branch correctly placed above `rowsOf` (the dead-code trap the devils-advocate flagged). Budget test reframed to bound formatting *overhead* (description is verbatim payload).
+- **Task 4a–4d** (`3f8574c`, `9ab25a6`, `44d279d`, `1e93e81` + review follow-up `89a285b`) — multi-id CLI. Quality review found the array-run-consumption order hazard (Finding 2); resolved as documented + tested constraint.
+- **Task 5** (`abeebf6`) — `get` tool description steers multi-fetch to `ids` (MCP).
+- **Task 6** (`234fabd`) — SKILL/README/usage docs; every claim verified against the live CLI.
+- **Task 7** (`c609181`) — findings doc `.ai/2026-06-04-T27-read-path-findings.md`.
+- **Task 8** (`984513e`) — v0.7.0 bump + GitHub release.
+
+### Triage summary
+| # | Finding | Type | Decision |
+|---|---------|------|----------|
+| 1 | `search.ts` retains the silent-empty status footgun Task 2 fixed for `list` (`search.ts:147-149`, no validation) | Deviation (out-of-scope) | **Deferred** — filed as follow-up ticket T29; pre-existing, not a T27 regression |
+| 2 | Array-flag run-consumption (4a) is general → `related --kinds a b T5` absorbs the trailing id; resolved as documented + tested order constraint, not a narrowed rule | Deviation (deliberate) | **Approved** — standard variadic-CLI behaviour; operator (Claude) uses positional-first per SKILL; pinned by tests |
+| 3 | `outstanding` implemented as `status != 'done'` rather than the spec's enumerated list | Deviation (deliberate) | **Approved** — equivalent under the closed 5-status enum; superset-safe under enum growth; same predicate as `next`'s count query |
+| 4 | Task 3b code landed in the 3a commit (shared `formatGetDetail`/`ticketDetail`); both arms independently tested | Process note | **Approved** — renderer is one function with two arms; commits + tests are genuinely split |
+| 5 | P3 title-truncation recorded as WON'T-DO | Scope decision (as planned) | **Approved** — full-body `get` + `--format table` remove the need; widening `TITLE_MAX` would inflate every `list` row's tokens |
+| — | Empty-`next` uses a top-level `message` field rather than populating `reason` | Deviation (deliberate, Task 1) | **Approved** — avoids the T19 two-shapes-in-one-field hazard; keeps the hit-path `reason` byte-identical; satisfies AC#3's intent |
+
+All 7 T27 acceptance criteria (`.ai/TICKETS.md`) verified met, each mapped to code + a named test.
+
+### Technical context & learnings (reusable)
+- **`formatResult` ordering is load-bearing:** per-command early returns must precede `rowsOf` (`format.ts:303` json → `307` get → `309` rowsOf). `rowsOf` matches both `{ticket}` and `{tickets}` via `ROW_KEYS`, so any per-command branch added *below* it is dead code for those shapes.
+- **`outstanding` ≡ `status != 'done'`** under the closed enum (`open/in_progress/blocked/done/deferred`); used identically in `list.ts:149` and the `next` empty-count query (`next.ts:94`).
+- **Array-flag run-consumption is global** (`flags.ts:171-174`): every array-typed prop (`get.ids`, `add.tags`, `related.kinds`) swallows the trailing token run, so **bare positionals must precede a variadic flag** or they get absorbed (pinned by `flags.test.ts:126-139`). `oneOf+array` props (`list.status`) are exempt from the repeated-scalar throw.
+- **`get` keeps both `id` and `ids`:** CLI single positional → `id` (errors on miss), 2+ positionals → `ids` (`{tickets:[null]}` on miss, no throw). Empty-`next` carries an optional top-level `message` — consumers check `ticket === null` then read `message`.
+
+### Items requiring rework
+None. No finding was denied.
+
+### Deferred/skipped items
+- **`search.ts` status validation** (T29) — same silent-empty footgun `list` now rejects; mechanical copy of `list.ts:91-108`. Pre-existing; does not gate T27.
+- **P3 compact title truncation** — WON'T-DO (see findings doc rationale).
+- **`VALID_STATUSES` triplication** (`list.ts`/`update.ts`/`add.ts`) — deliberate pre-existing local-duplication pattern; extract on the next status-set change.

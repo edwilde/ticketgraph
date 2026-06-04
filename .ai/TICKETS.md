@@ -9,7 +9,7 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 
 | Done ✅ | In progress | Open |
 |---|---|---|
-| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T28 | _(none)_ | T27 |
+| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28 | _(none)_ | T29 |
 
 **T1–T18 complete (2026-05-29).** 410 tests across 42 files, deterministically green (verified 12/12 consecutive full-suite runs). 21 MCP tools, demo + sample parsers (both 100% heading parse on the live files), plugin manifest + install docs, README + usage + migration docs, and GitHub Actions CI (ubuntu + macOS).
 
@@ -20,6 +20,8 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 **T20 landed (2026-06-03, four-stage pipeline):** lean default response shapes — write tools (`add`/`update`/`set_parent`/`append_to_description`) now return a lean flat shape by default with the full row via `full: true`, and `tickets.get` omits `recent_audit` unless `include_audit: true`. Measured default-shape byte reductions: add −73%, update −68%, set_parent −84%, append −80%, get −76%. No datum unrecoverable (opt-in restores it). 643 tests green. Findings: `.ai/2026-06-03-T20-response-shape-findings.md`; plan + review record: `.ai/implementation-plans/T20-token-efficiency-response-shapes.md`. **Key learning:** token cost is path-dependent — extra fields are free on the CLI *compact* path (6 columns rendered) but billed in full on the MCP / `--format json` path; trimming `TResult` is the only lever for the JSON/MCP paths.
 
 **T28 landed (2026-06-04, v0.6.0, four-stage pipeline):** added the `ticketgraph mcp` launch command (additive disjunct in `server.ts:110`; `--mcp`/no-args unchanged and regression-tested) and restructured the README CLI-first with the MCP demoted to an opt-in section. `--help` footer + `docs/install.md` document `mcp` as preferred. `mcp` stays an entry-switch *mode* (never routed through `runCli`), so it ignores trailing flags. 646 tests green; plan + review record in `.ai/implementation-plans/T28-mcp-command-and-cli-first-readme.md`. Tagged v0.6.0 with a GitHub release.
+
+**T27 landed (2026-06-04, v0.7.0, four-stage pipeline):** cut the "outstanding tickets" read path from ~9 calls to 1–2 across CLI **and** MCP. The two *smart* fixes live in the shared tool layer so both surfaces gain them: `list --status outstanding` (everything not done, incl. deferred; + status validation so a typo throws instead of returning empty) and an explanatory `message` on empty `next` ("nothing ready to work on; …counts… — run `list --status outstanding`"). The two CLI-front-end fixes: `get` renders the full ticket body (description/tags/relations) in compact instead of the 6-col list row, and multi-id `get` works (`get T1 T2 T3` positionals + `--ids T1 T2 T3`; repeated `--id` throws loudly). `get` tool description steers multi-fetch to `ids` (MCP). 672 tests green. Findings: `.ai/2026-06-04-T27-read-path-findings.md`; plan + as-built review record: `.ai/implementation-plans/2026-06-04-T27-outstanding-read-path.md`. **Key learning:** `formatResult`'s per-command branch must precede the generic `rowsOf` short-circuit (which matches both `{ticket}` and `{tickets}`), or it's dead code; and array-flag run-consumption is global, so positionals must precede a variadic flag. Spun off **T29** (apply the same status validation to `search`).
 
 **T27 (user-requested, 2026-06-03):** reduce the token cost of the common "outstanding tickets" read path. A real session burned ~3k tokens / 9 Bash calls to answer it, because (a) compact `get` renders the list row and hides the description, (b) repeated `--id` silently last-wins instead of multi-fetching, and (c) the one-call path (`list --include_description`) is undiscoverable. Token efficiency is again the driver — same mission as T20/T22–T26, now on the *read* round-trip rather than the response shape.
 
@@ -448,7 +450,8 @@ A second thin front-end over the existing `makeToolRegistry` so every tool is re
 ---
 
 ### T27 — Cut the token cost of the "outstanding tickets" read path
-**Status:** Open. **Type:** enhancement (token efficiency / UX). **Effort:** 3.
+**Status:** Done (2026-06-04, v0.7.0). **Type:** enhancement (token efficiency / UX). **Effort:** 3.
+**As-built:** `.ai/implementation-plans/2026-06-04-T27-outstanding-read-path.md` (four-stage pipeline; per-task two-stage review; 672 tests green). Shared tool layer: `list --status outstanding` + status validation, explanatory `message` on empty `next`. CLI front-end: full-body `get` compact, multi-id `get` (positionals + `--ids`, repeated `--id` throws). MCP: `get` description steers multi-fetch to `ids`. Findings: `.ai/2026-06-04-T27-read-path-findings.md`. Spun off T29 (same validation for `search`).
 **Found by:** a real session (2026-06-03) that spent ~3k tokens and **9 Bash calls** to answer "outstanding tickets" for a 4-ticket project. The model behaved correctly at each step; the surface defeated it. Same mission as T20/T22–T26 — token efficiency — but on the *read round-trip*, not the response shape. Note T20 deliberately did **not** touch the formatter or flag layer, so these failures are live in current code.
 
 **The failure trace (verified against current code):**
@@ -515,6 +518,18 @@ Restructure so the CLI is the lede and MCP is a short optional section:
 - `npm run build` + full suite green. Version bump (likely **0.6.0** — new CLI surface) with tag + GitHub release per `CLAUDE.md`.
 
 **Notes:** four-stage pipeline. Part A is a ~1-line entry-switch change + help text + a spawn test; Part B is docs. Relates to T22–T26 (the dual-mode CLI this documents) and T25 (generated `--help`/discoverability). Effort **2**.
+
+---
+
+### T29 — Validate `status` in `tickets.search` (close the silent-empty footgun)
+**Status:** Open. **Type:** bug (UX / consistency). **Effort:** 1.
+**Found by:** the T27 review (2026-06-04). T27 added `status` validation to `tickets.list` so a typo (`--status outstandng`) throws `InvalidParams` instead of silently matching zero rows. `tickets.search` (`src/tools/search.ts:147-149`) still does `t.status = ?` for any unknown string with no validation — the exact silent-empty trap, now inconsistent with `list` (loud) vs `search` (silent).
+**Scope:**
+- In `search.ts` `parseArgs`, validate `status` against the known statuses (∪ any sentinels `search` supports) and throw `McpError(InvalidParams)` naming the bad value — a mechanical copy of the `list.ts:91-108` block. Confirm which sentinels `search` should accept (it has `include_done`, so `all`/`outstanding` may not apply — decide in planning).
+- Consider, while here, whether `VALID_STATUSES` (now triplicated across `list.ts`/`update.ts`/`add.ts`) should be hoisted to a shared `src/lib/statuses.ts` — optional, do only if it stays surgical.
+**Acceptance:**
+- `search --status <bogus>` throws `InvalidParams` naming the value; existing `search` tests stay green; a new test covers the throw.
+**Notes:** small, mechanical. Pre-existing (not a T27 regression); deferred out of T27 to keep that ticket scoped to the traced read path.
 
 ---
 
