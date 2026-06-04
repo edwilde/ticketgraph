@@ -109,3 +109,19 @@ describe("parseFlags — type-driven coercion", () => {
     });
   });
 });
+
+describe("bindPositionals — multi-positional get", () => {
+  it("get with 2+ positionals → binds the full array to ids", () => {
+    expect(bindPositionals("get", ["T1", "T2", "T3"], {})).toEqual({
+      ids: ["T1", "T2", "T3"],
+    });
+  });
+
+  it("get with a single positional → still binds to id (not ids)", () => {
+    expect(bindPositionals("get", ["T1"], {})).toEqual({ id: "T1" });
+  });
+
+  it("related with 2+ positionals → still throws (no ids param)", () => {
+    expect(() => bindPositionals("related", ["T1", "T2"], {})).toThrow(FlagParseError);
+  });
+});

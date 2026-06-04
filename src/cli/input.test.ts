@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import { makeGetTool } from "../tools/get.js";
 import { makeListTool } from "../tools/list.js";
 import { makeAddManyTool } from "../tools/add_many.js";
+import { makeRelatedTool } from "../tools/related.js";
 import { resolveRawArgs } from "./input.js";
 import { FlagParseError } from "./flags.js";
 
@@ -11,6 +12,7 @@ const db = new Database(":memory:");
 const getTool = makeGetTool(db);
 const listTool = makeListTool(db);
 const addManyTool = makeAddManyTool(db);
+const relatedTool = makeRelatedTool(db);
 
 describe("resolveRawArgs — --json escape hatch", () => {
   it("uses the --json string verbatim as the full args object", async () => {
@@ -83,9 +85,15 @@ describe("resolveRawArgs — positional binding", () => {
   });
 
   it("two positionals for a single-positional command → FlagParseError", async () => {
-    await expect(resolveRawArgs(getTool, "get", ["T1", "T2"])).rejects.toThrow(
+    await expect(resolveRawArgs(relatedTool, "related", ["T1", "T2"])).rejects.toThrow(
       FlagParseError,
     );
+  });
+
+  it("multiple positionals for get → folds into ids", async () => {
+    expect(await resolveRawArgs(getTool, "get", ["T1", "T2", "T3"])).toEqual({
+      ids: ["T1", "T2", "T3"],
+    });
   });
 
   it("positional for an unmapped command → FlagParseError", async () => {

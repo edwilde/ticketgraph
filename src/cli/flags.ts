@@ -33,6 +33,17 @@ export const PRIMARY_POSITIONAL: Record<string, string> = {
 };
 
 /**
+ * Commands that accept MULTIPLE bare positionals, mapped to the array param
+ * they bind. Only `get` qualifies (it has an `ids` array param). A SINGLE
+ * positional still routes through PRIMARY_POSITIONAL (→ `id`) to preserve the
+ * single-id not-found-error semantics in get.ts; only 2+ positionals fold
+ * into `ids` here.
+ */
+export const MULTI_POSITIONAL: Record<string, string> = {
+  get: "ids",
+};
+
+/**
  * Fold parsed positionals into the values object for a command. Mutates and
  * returns `values`. Throws {@link FlagParseError} (→ exit 2) when the command
  * takes no positional or more than one is supplied.
@@ -51,6 +62,11 @@ export function bindPositionals(
     );
   }
   if (positionals.length > 1) {
+    const multiParam = MULTI_POSITIONAL[cliName];
+    if (multiParam !== undefined) {
+      values[multiParam] = positionals;
+      return values;
+    }
     throw new FlagParseError(
       `${cliName} takes at most one positional argument (got ${positionals.length})`,
     );
