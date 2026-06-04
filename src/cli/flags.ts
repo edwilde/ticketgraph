@@ -77,7 +77,9 @@ function hasArrayBranch(prop: PropSchema): boolean {
  * Coercion rules (type-driven):
  *  - number prop   → `Number(value)` (NaN passes through to parseArgs)
  *  - boolean prop  → presence ⇒ `true`, consumes NO value
- *  - array prop    → always an array, repeats accumulate
+ *  - array prop    → always an array; consumes the RUN of following non-`--`
+ *                    tokens (`--ids T1 T2 T3` ⇒ ["T1","T2","T3"]), and
+ *                    repeated flags still accumulate (`--ids a --ids b`)
  *  - oneOf+array   → single use ⇒ scalar, repeated ⇒ array
  *  - otherwise     → string
  *
@@ -139,6 +141,14 @@ export function parseFlags(
     } else if (isArrayProp(prop)) {
       const arr = (values[key] as string[] | undefined) ?? [];
       arr.push(rawValue);
+      // Greedily consume the run of following non-`--` tokens so
+      // `--ids T1 T2 T3` yields ["T1","T2","T3"]. The run stops at the next
+      // `--flag` (or end of tokens); repeated `--ids a --ids b` still
+      // accumulates because each occurrence appends to the same array.
+      while (i + 1 < tokens.length && !tokens[i + 1]!.startsWith("--")) {
+        arr.push(tokens[i + 1]!);
+        i++;
+      }
       values[key] = arr;
     } else if (hasArrayBranch(prop)) {
       if (count === 1) {
