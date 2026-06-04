@@ -213,6 +213,50 @@ describe("formatResult — single ticket (add / get)", () => {
     const bytes = Buffer.byteLength(formatResult("get", { ticket: ticketFull() }, "compact"));
     expect(bytes).toBeLessThan(600);
   });
+
+  it("get batch renders each ticket", () => {
+    const out = formatResult(
+      "get",
+      { tickets: [ticketFull({ id: "T9" }), ticketFull({ id: "T11", description: "Second body." })] },
+      "compact",
+    );
+    const blocks = out.split("\n\n");
+    expect(blocks).toHaveLength(2);
+    expect(out).toContain("id=T9");
+    expect(out).toContain("id=T11");
+    expect(out).toContain("Second body.");
+  });
+
+  it("get batch null slot renders a non-blank not-found line", () => {
+    const out = formatResult(
+      "get",
+      { tickets: [ticketFull({ id: "T9" }), null] },
+      "compact",
+    );
+    const blocks = out.split("\n\n");
+    expect(blocks).toHaveLength(2); // one block per array slot, positionally
+    expect(blocks[1]!.trim().length).toBeGreaterThan(0);
+    expect(out).toContain("(ticket not found)");
+  });
+
+  it("get renders recent_audit only when present", () => {
+    const withAudit = formatResult(
+      "get",
+      {
+        ticket: ticketFull({
+          recent_audit: [
+            { field: "status", old_value: "open", new_value: "done", changed_at: "2026-02-01T00:00:00.000Z" },
+          ],
+        }),
+      },
+      "compact",
+    );
+    expect(withAudit).toContain("audit:");
+    expect(withAudit).toContain("status");
+
+    const withoutAudit = formatResult("get", { ticket: ticketFull() }, "compact");
+    expect(withoutAudit).not.toContain("audit:");
+  });
 });
 
 describe("formatResult — link (flat object)", () => {
