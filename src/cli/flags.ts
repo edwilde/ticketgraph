@@ -94,8 +94,14 @@ function hasArrayBranch(prop: PropSchema): boolean {
  *  - number prop   → `Number(value)` (NaN passes through to parseArgs)
  *  - boolean prop  → presence ⇒ `true`, consumes NO value
  *  - array prop    → always an array; consumes the RUN of following non-`--`
- *                    tokens (`--ids T1 T2 T3` ⇒ ["T1","T2","T3"]), and
- *                    repeated flags still accumulate (`--ids a --ids b`)
+ *                    tokens (space form `--ids T1 T2 T3` ⇒ ["T1","T2","T3"],
+ *                    equals form `--ids=T1 T2 T3` likewise ⇒ ["T1","T2","T3"]),
+ *                    and repeated flags still accumulate (`--ids a --ids b`).
+ *                    ORDER CONSTRAINT: because the run consumes ALL following
+ *                    non-flag tokens, any bare positional MUST appear BEFORE a
+ *                    variadic flag. `related T5 --kinds blocks depends` is
+ *                    correct; `related --kinds blocks depends T5` makes `T5`
+ *                    part of `kinds` and leaves no positional for `id`.
  *  - oneOf+array   → single use ⇒ scalar, repeated ⇒ array
  *  - otherwise     → string; repeating a plain scalar flag THROWS (no silent
  *                    last-wins) — use the array form or positionals instead
@@ -181,7 +187,7 @@ export function parseFlags(
       // (oneOf+array props legitimately repeat — they took the branch above.)
       if (count > 1) {
         throw new FlagParseError(
-          `--${key} given more than once; use --ids T1 T2 or positionals`,
+          `--${key} given more than once (only the array/positional forms accept multiple values)`,
         );
       }
       values[key] = rawValue;

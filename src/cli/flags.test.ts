@@ -121,6 +121,22 @@ describe("parseFlags — type-driven coercion", () => {
       parseFlags(listSchema, ["--status", "open", "--status", "blocked"]).values,
     ).toEqual({ status: ["open", "blocked"] });
   });
+
+  // Order constraint: positional BEFORE a variadic array flag works correctly.
+  it("related T5 --kinds blocks depends (positional first) → id:T5, kinds:[blocks,depends]", () => {
+    const parsed = parseFlags(relatedSchema, ["T5", "--kinds", "blocks", "depends"]);
+    expect(parsed.values).toEqual({ kinds: ["blocks", "depends"] });
+    expect(parsed.positionals).toEqual(["T5"]);
+  });
+
+  // Order constraint: positional AFTER a variadic array flag is consumed into the array.
+  // This documents the order-sensitivity trap — the test pins the actual behaviour so
+  // a future refactor can't silently break or unbreak it without notice.
+  it("related --kinds blocks T5 (positional after array flag) → T5 absorbed into kinds, no positional", () => {
+    const parsed = parseFlags(relatedSchema, ["--kinds", "blocks", "T5"]);
+    expect(parsed.values).toEqual({ kinds: ["blocks", "T5"] });
+    expect(parsed.positionals).toEqual([]);
+  });
 });
 
 describe("bindPositionals — multi-positional get", () => {
