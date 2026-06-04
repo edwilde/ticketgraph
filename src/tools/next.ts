@@ -91,7 +91,7 @@ export function makeNextTool(db: Database.Database, getClientRoots: GetClientRoo
       if (!row) {
         const counts = db
           .prepare(
-            `SELECT status, COUNT(*) AS n FROM tickets WHERE project_id = ? AND status != 'done' GROUP BY status`,
+            `SELECT status, COUNT(*) AS n FROM tickets WHERE project_id = ? AND status != 'done' GROUP BY status ORDER BY status`,
           )
           .all(projectId) as { status: string; n: number }[];
 
