@@ -56,7 +56,7 @@ export function makeGetTool(db: Database.Database, getClientRoots: GetClientRoot
     name: "tickets.get",
     description:
       "Get one or more full tickets including tags and relations. " +
-      "Pass id for a single ticket, or ids (array, max 10) for multiple. " +
+      "Pass id for a SINGLE ticket. For TWO OR MORE tickets use ids (array, max 10) — do NOT call this tool repeatedly with id. " +
       "Recent audit history is opt-in via include_audit.",
     inputSchema: {
       type: "object",
