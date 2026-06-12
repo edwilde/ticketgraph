@@ -163,7 +163,7 @@ claude mcp get ticketgraph
 
 Inside a Claude Code session:
 - `/mcp` — shows all connected servers; `ticketgraph` should appear as connected.
-- Call tool `tickets.ping` — returns `{ ok: true, version: "0.8.1", db_path: "...", schema_version: 1 }`.
+- Call tool `tickets.ping` — returns `{ ok: true, version: "0.8.2", db_path: "...", schema_version: 1 }`.
 
 ---
 

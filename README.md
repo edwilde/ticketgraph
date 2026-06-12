@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/ticketgraph-banner.png" alt="ticketgraph" width="640">
+<img src="assets/ticketgraph-banner.png" alt="ticketgraph" width="640" height="349">
 
 # ticketgraph
 
@@ -17,9 +17,11 @@ token-efficient ticket tracking for Claude, backed by SQLite + FTS5
 
 ## Problem
 
-Dense `.ai/TICKETS.md` files cost a full-file read every time a ticket topic comes up. A large project file can run to 25,000 tokens — and Claude reads all of it just to answer "what's open?". That's a poor token economy for what is fundamentally a structured-data question.
+Planning a large development means accumulating a lot of tickets — features, bugs, dependencies, epics. To stay on track, you (or your AI agent) keep asking small questions: what's next? what's blocked? what changed? what's left?
 
-ticketgraph makes every common ticket query cost hundreds of tokens, not tens of thousands. Every response from `list`, `search`, `stats`, `next`, and `changed_since` fits in under 2k tokens by default. Full descriptions are returned only when you ask for them explicitly (`get`).
+The usual answer is one big markdown file (for example `.ai/TICKETS.md`) that gets read in full every time one of those questions comes up. A large one can run to 25,000 tokens — and an agent reads all of it just to answer "what's open?". That's a poor token economy for what is fundamentally a structured-data question, and it only gets worse as the backlog grows.
+
+ticketgraph makes every common ticket query cost hundreds of tokens, not tens of thousands. Every response from `list`, `search`, `stats`, `next`, and `changed_since` fits in under 2k tokens by default. Full descriptions are returned only when you ask for them explicitly (`get`). Your agent stays oriented across a big backlog without burning context on every lookup.
 
 ---
 
@@ -127,7 +129,7 @@ For full CLI documentation and per-command flags, see [docs/usage.md](docs/usage
 The cheap path for agents is to point them at the CLI from your project's `CLAUDE.md`, so Claude reaches for `ticketgraph <command>` instead of reading the ticket file:
 
 ```md
-Token-cheap ticket queries via `ticketgraph <command>` (read: list, get, search, next, stats, changed_since, blockers_of, children_of, related, validate, ping). Prefer this over reading `.ai/TICKETS.md`. Use `--format json` to parse output.
+Token-cheap ticket queries via `ticketgraph <command>` (read: list, get, search, next, stats, changed_since, blockers_of, children_of, related, validate, ping). Prefer this over reading the ticket file directly. Use `--format json` to parse output.
 ```
 
 Bundled slash commands: `/ticketgraph:tickets-add|status|next|open|done` — see [docs/usage.md](docs/usage.md#slash-commands).
