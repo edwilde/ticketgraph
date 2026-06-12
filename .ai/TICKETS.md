@@ -9,7 +9,7 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 
 | Done ✅ | In progress | Open |
 |---|---|---|
-| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28 | _(none)_ | T29 |
+| T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29 | _(none)_ | _(none)_ |
 
 **T1–T18 complete (2026-05-29).** 410 tests across 42 files, deterministically green (verified 12/12 consecutive full-suite runs). 21 MCP tools, demo + sample parsers (both 100% heading parse on the live files), plugin manifest + install docs, README + usage + migration docs, and GitHub Actions CI (ubuntu + macOS).
 
@@ -522,7 +522,8 @@ Restructure so the CLI is the lede and MCP is a short optional section:
 ---
 
 ### T29 — Validate `status` in `tickets.search` (close the silent-empty footgun)
-**Status:** Open. **Type:** bug (UX / consistency). **Effort:** 1.
+**Status:** Done (2026-06-12, v0.8.0). **Type:** bug (UX / consistency). **Effort:** 1.
+**As-built:** added a `VALID_STATUSES` validation block to `search.ts` `parseArgs` (mirrors `list.ts:91-108`) — a string status must be a concrete status, an array only concrete statuses; a bogus value throws `InvalidParams` naming it. **No sentinels:** search controls done/deferred via `include_done`, so `all`/`outstanding` are intentionally *not* accepted (decided in planning). Kept `VALID_STATUSES` as a local const matching the per-file pattern in every other tool (list/update/add/add_many/import-format each keep their own) — the optional shared-`statuses.ts` hoist was declined as out-of-scope (would touch 5 files for no behaviour gain; not surgical). New test (`search.test.ts` Case 8b) covers the throw on bad string + bad array element + valid-status pass-through. 673 tests green.
 **Found by:** the T27 review (2026-06-04). T27 added `status` validation to `tickets.list` so a typo (`--status outstandng`) throws `InvalidParams` instead of silently matching zero rows. `tickets.search` (`src/tools/search.ts:147-149`) still does `t.status = ?` for any unknown string with no validation — the exact silent-empty trap, now inconsistent with `list` (loud) vs `search` (silent).
 **Scope:**
 - In `search.ts` `parseArgs`, validate `status` against the known statuses (∪ any sentinels `search` supports) and throw `McpError(InvalidParams)` naming the bad value — a mechanical copy of the `list.ts:91-108` block. Confirm which sentinels `search` should accept (it has `include_done`, so `all`/`outstanding` may not apply — decide in planning).

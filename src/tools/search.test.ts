@@ -200,6 +200,33 @@ describe("tickets.search", () => {
     }
   });
 
+  // Case 8b: bogus status → InvalidParams (T29 — close the silent-empty footgun)
+  it("bogus status throws InvalidParams naming the value", async () => {
+    const { tool } = setup();
+
+    expect(() =>
+      tool.parseArgs({ project: "proj1", q: "widget", status: "outstandng" }),
+    ).toThrow(McpError);
+
+    try {
+      tool.parseArgs({ project: "proj1", q: "widget", status: "outstandng" });
+    } catch (err) {
+      expect(err).toBeInstanceOf(McpError);
+      expect((err as McpError).code).toBe(ErrorCode.InvalidParams);
+      expect((err as McpError).message).toContain("outstandng");
+    }
+
+    // A bogus value inside a status array is also rejected.
+    expect(() =>
+      tool.parseArgs({ project: "proj1", q: "widget", status: ["open", "nope"] }),
+    ).toThrow(McpError);
+
+    // A valid concrete status still parses fine.
+    expect(() =>
+      tool.parseArgs({ project: "proj1", q: "widget", status: "done" }),
+    ).not.toThrow();
+  });
+
   // Case 9: project: "all" cross-project search
   it("project: 'all' searches across projects", async () => {
     const { db, tool } = setup();

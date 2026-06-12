@@ -6,6 +6,7 @@ import { sanitiseFtsQuery } from "../lib/fts.js";
 import type { Tool } from "./types.js";
 
 const DEFAULT_STATUS_FILTER = ["open", "in_progress", "blocked"];
+const VALID_STATUSES = new Set(["open", "in_progress", "blocked", "done", "deferred"]);
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
 const DEFAULT_SNIPPET_LENGTH = 16;
@@ -92,6 +93,31 @@ export function makeSearchTool(db: Database.Database, getClientRoots: GetClientR
         throw new McpError(ErrorCode.InvalidParams, "snippet_length must be a positive integer.");
       }
       const clampedSnippetLength = Math.min(snippetLength, MAX_SNIPPET_LENGTH);
+
+      // Validate status against the known statuses. Unlike list, search has no
+      // 'all'/'outstanding' sentinels — it controls done/deferred via the
+      // include_done flag — so a string status must be a concrete status and an
+      // array must contain only concrete statuses. This closes the footgun
+      // where a typo (e.g. "outstandng") silently matched zero rows via the
+      // `t.status = ?` clause instead of failing loudly (mirrors list.ts).
+      const statusRaw = r["status"];
+      if (typeof statusRaw === "string") {
+        if (!VALID_STATUSES.has(statusRaw)) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `status must be one of: ${[...VALID_STATUSES].join(", ")} (got '${statusRaw}')`,
+          );
+        }
+      } else if (Array.isArray(statusRaw)) {
+        for (const s of statusRaw) {
+          if (typeof s !== "string" || !VALID_STATUSES.has(s)) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              `status array must contain only: ${[...VALID_STATUSES].join(", ")} (got '${String(s)}')`,
+            );
+          }
+        }
+      }
 
       return {
         project: typeof r["project"] === "string" ? r["project"] : undefined,
