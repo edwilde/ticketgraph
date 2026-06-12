@@ -1,9 +1,10 @@
 {
   "name": "@edwilde/ticketgraph",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Token-efficient ticket queries over SQLite — CLI (ticketgraph) + opt-in MCP server.",
   "type": "module",
   "private": false,
+  "license": "MIT",
   "main": "./dist/server.js",
   "exports": {
     ".": "./dist/server.js"

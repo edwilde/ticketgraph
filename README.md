@@ -1,8 +1,17 @@
+<div align="center">
+
+<img src="assets/ticketgraph-banner.png" alt="ticketgraph" width="640">
+
 # ticketgraph
 
 token-efficient ticket tracking for Claude, backed by SQLite + FTS5
 
 [![CI](https://github.com/edwilde/ticketgraph/actions/workflows/ci.yml/badge.svg)](https://github.com/edwilde/ticketgraph/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/edwilde/ticketgraph?sort=semver)](https://github.com/edwilde/ticketgraph/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
+
+</div>
 
 ---
 
