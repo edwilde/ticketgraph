@@ -30,7 +30,7 @@ export function makeRegisterProjectTool(db: Database.Database): Tool<RegisterPro
     inputSchema: {
       type: "object",
       properties: {
-        id: { type: "string", description: "Project id, e.g. 'demo'. Must match /^[a-z][a-z0-9_-]*$/." },
+        id: { type: "string", description: "Project id, e.g. 'myproject'. Must match /^[a-z][a-z0-9_-]*$/." },
         display_name: { type: "string", description: "Human-readable project name." },
         root_path: { type: "string", description: "Absolute path to the project's root directory." },
       },

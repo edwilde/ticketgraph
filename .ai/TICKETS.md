@@ -48,7 +48,7 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 - `tsup.config.ts` — single ESM bundle, sourcemaps.
 - `vitest.config.ts` — Node environment, coverage off by default.
 - `.gitignore` — `node_modules`, `dist`, `*.db`, `*.db-journal`, `coverage`, `.DS_Store`.
-- `.editorconfig`, `.prettierrc` — match Ed's standard formatting.
+- `.editorconfig`, `.prettierrc` — match the author's standard formatting.
 - `LICENSE` — MIT.
 - Root `README.md` stub (one-paragraph project description + link to the design spec).
 **Acceptance:**
@@ -198,7 +198,7 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 - Migration guide for users coming from a flat TICKETS.md.
 **Acceptance:**
 - README answers: what is it, why is it different from storybloq, how do I install it, three example queries.
-- A non-Ed reader could follow the README to a working install.
+- A new reader could follow the README to a working install.
 
 ### T13 — CI via GitHub Actions
 **Blockers:** T1.
@@ -275,7 +275,7 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 
 ### T18 — Orphaned MCP server processes accumulate (no stdin-close handler; `shutdown()` hangs)
 **Status:** Open. **Type:** bug (resource leak / lifecycle). **Effort:** 2.
-**Found by:** a live debugging session (2026-05-29) diagnosing `kernel_task` CPU saturation on Ed's M1 Pro. The machine was thrashing swap (50 GB swap 99.5% full, load avg ~520, 0% idle). Root cause was ~60 orphaned `node dist/server.js` processes (~180 MB each, ≈10 GB RAM), all reparented to launchd (`ppid 1`), accumulated over a 4-day uptime. `pkill` (SIGTERM) failed to reap them — only `kill -9` worked, which is itself a symptom (see defect #2).
+**Found by:** a live debugging session (2026-05-29) diagnosing `kernel_task` CPU saturation on the author's M1 Pro. The machine was thrashing swap (50 GB swap 99.5% full, load avg ~520, 0% idle). Root cause was ~60 orphaned `node dist/server.js` processes (~180 MB each, ≈10 GB RAM), all reparented to launchd (`ppid 1`), accumulated over a 4-day uptime. `pkill` (SIGTERM) failed to reap them — only `kill -9` worked, which is itself a symptom (see defect #2).
 **Root cause (two compounding defects):**
 1. **No stdin-EOF shutdown.** The stdio server only handles `SIGTERM`/`SIGINT`. When the parent Claude Code session exits it closes the stdio pipes but does not reliably signal the child; with no `process.stdin` `end`/`close` handler the orphaned server runs forever and reparents to launchd. Every session that spawns the server and exits uncleanly leaks one process.
 2. **`shutdown()` can hang, defeating SIGTERM.** `shutdown()` sets the `shuttingDown` guard, then `await server.close()`. For an orphan whose transport pipe is already dead, `server.close()` never resolves, so `process.exit(0)` is never reached — and the guard turns every subsequent SIGTERM into a no-op. The process is wedged half-shut and immune to normal kills.
@@ -330,7 +330,7 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 ### T21 — `tickets.export`: write a timestamp-stamped `.ai/TICKETS.md` snapshot
 **Status:** Done (2026-05-30). **Type:** enhancement. **Effort:** 3.
 **As-built:** `.ai/implementation-plans/2026-05-30-T21-export-markdown.md` (four-stage pipeline; 23 MCP tools; 506 tests green). Pure renderer `src/lib/export-markdown.ts` + DB collector `src/lib/export-collect.ts` + tool `src/tools/export.ts`; writes `<root>/.ai/TICKETS.md` with a generated-at banner, returns compact `{ path, bytes, ticket_count, exported_at }`. Spec non-goal reversed honestly (§3/§6/§11 dated annotations).
-**Requested by:** Ed (2026-05-30) — "an export function which writes out a `.ai/TICKETS.md` dump, clearly labelled as an export at a specific time/date to avoid drift."
+**Requested by:** the author (2026-05-30) — "an export function which writes out a `.ai/TICKETS.md` dump, clearly labelled as an export at a specific time/date to avoid drift."
 **Reverses a documented non-goal — call this out, don't paper over it.** The design spec deliberately ruled markdown export out: §"no markdown export pipeline" (Non-goals), §"The MCP is the canonical store. TICKETS.md files are not regenerated. They are migrated once at setup and then deleted.", and "Markdown export / TICKETS.md regeneration" sits in the deferred list. A `tickets.dump` is reserved only as a *"debug-only raw row export… token-heavy; not for normal queries."* This ticket consciously changes that stance for the human-readable snapshot case. The plan's **first job** is to record the spec amendment (update the Non-goals + the `tickets.dump` row, or add a "Reversed decisions" note) so the spec and behaviour don't disagree.
 **Why now / the drift mitigation:** the DB is the canonical store, but a glanceable, diffable, git-committable markdown view of a project's tickets is genuinely useful (PR context, offline reading, history). The original objection was *drift* — a regenerated file silently diverging from the DB and being mistaken for the source of truth. The mitigation the request names is the whole point of this ticket: every export carries a loud, unmissable banner stating it is a generated point-in-time snapshot, when it was generated, and that the DB — not the file — is authoritative. Stale ≠ silently-stale.
 **Fidelity caveat (state plainly in the plan and the tool description):** the export renders **only what the DB holds** — id, title, status, type, effort, priority/epic grouping, tags, blockers/relations, timestamps, and the `description` free-text blob verbatim. It does **not** reconstruct the rich hand-authored Scope/Acceptance/Notes structure of *this* very file unless that prose lives in `description`. So a regenerated `TICKETS.md` will look leaner than the current hand-maintained one. That is expected and is itself an argument for the banner.
@@ -356,11 +356,11 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 
 ## CLI surface (v0.4 — runs either via MCP or CLI)
 
-A second thin front-end over the existing `makeToolRegistry` so every tool is reachable as `ticketgraph <command> [--flags]` as well as over MCP. **Driver: token efficiency.** The MCP's cost is dominated not by per-call results (already <2k by design §3.1) but by the always-on schema tax — all 23 tool definitions injected into every connected session. The CLI removes that for sessions that don't touch tickets, and trims per-call output via a compact default format. Decisions locked with Ed 2026-05-31: dual-mode single bin · CLI default + MCP opt-in · compact-text default.
+A second thin front-end over the existing `makeToolRegistry` so every tool is reachable as `ticketgraph <command> [--flags]` as well as over MCP. **Driver: token efficiency.** The MCP's cost is dominated not by per-call results (already <2k by design §3.1) but by the always-on schema tax — all 23 tool definitions injected into every connected session. The CLI removes that for sessions that don't touch tickets, and trims per-call output via a compact default format. Decisions locked with the author 2026-05-31: dual-mode single bin · CLI default + MCP opt-in · compact-text default.
 
 **Spec amendment is part of this epic (like T21).** §5 lists "No CLI" under YAGNI and §"Non-goals" repeats it; the P3 "CLI surface" bullet deferred it. T22's plan must first amend the spec (Non-goals + §5 + a "Reversed decisions" note) so spec and behaviour agree — verified by `git diff` touching `docs/specs/`.
 
-**Design through-line — optimise for Claude's accuracy, not human ergonomics** (per Ed's standing preference): the CLI is operated mostly by Claude via Bash, so the command/flag surface mirrors the tool surface 1:1 with the *fewest mapping rules to remember*. CLI command = MCP tool name minus the `tickets.` prefix, **underscores preserved** (`ticketgraph add_many`, `ticketgraph register_project`, `ticketgraph set_parent`) — no `_`→`-` prettification that Claude would have to mentally transform. Flag names = `inputSchema` property names verbatim. One rule, no surprises.
+**Design through-line — optimise for Claude's accuracy, not human ergonomics** (per the author's standing preference): the CLI is operated mostly by Claude via Bash, so the command/flag surface mirrors the tool surface 1:1 with the *fewest mapping rules to remember*. CLI command = MCP tool name minus the `tickets.` prefix, **underscores preserved** (`ticketgraph add_many`, `ticketgraph register_project`, `ticketgraph set_parent`) — no `_`→`-` prettification that Claude would have to mentally transform. Flag names = `inputSchema` property names verbatim. One rule, no surprises.
 
 ### T22 — CLI entrypoint + schema-driven dispatch
 **Status:** Done (2026-05-31). **Type:** feature (foundation for the CLI epic). **Effort:** 5. **As-built:** `.ai/implementation-plans/2026-05-31-T22-cli-entrypoint.md`.
@@ -404,7 +404,7 @@ A second thin front-end over the existing `makeToolRegistry` so every tool is re
 - A formatting layer applied to the plain data each tool's `handle` returns. `--format`:
   - **`compact` (default):** one line per row, space/tab-aligned, columns chosen per result shape (list/search/next → `id status priority type title`; get → a few key lines; stats → terse counts). No repeated JSON keys. This is the token-efficiency default for Claude callers.
   - **`json`:** the exact object today's MCP returns — for when Claude wants to parse, or for scripting. Stable, unformatted (single line) to stay diffable/greppable.
-  - **`table`:** human-pretty aligned table (boxless), for Ed reading at a terminal.
+  - **`table`:** human-pretty aligned table (boxless), for the author reading at a terminal.
 - Format selection precedence: `--format` flag › `TICKETGRAPH_FORMAT` env › `compact`. Auto-detect is explicitly **not** done (no TTY-sniffing magic — predictable for Claude).
 - The formatter is generic where possible (keys-as-columns) with small per-result-shape overrides only where compact output needs curation (list rows vs a single `get` vs `stats`). Resist a bespoke formatter per command — YAGNI.
 **Acceptance:**
@@ -539,7 +539,7 @@ Restructure so the CLI is the lede and MCP is a short optional section:
 - **`tickets.dump` enhancements** — pagination, JSON-streaming for large projects.
 - **Vector embedding sidecar** — opt-in `tickets_vec` table, local model via Ollama or hosted endpoint. Schema already reserves the name.
 - **Audit log retention** — `tickets.audit.purge_before` once row counts justify it (10k+).
-- ~~**CLI surface** — only if Ed wants out-of-Claude access. Currently no requirement.~~ **Reversed 2026-05-31 → now T22–T26 (CLI surface, v0.4).** Motivation turned out not to be out-of-Claude access but token efficiency: the CLI lets a session pay ~0 context until a ticket query is actually made, vs the MCP's always-on schema tax. See the CLI surface section above.
+- ~~**CLI surface** — only if the author wants out-of-Claude access. Currently no requirement.~~ **Reversed 2026-05-31 → now T22–T26 (CLI surface, v0.4).** Motivation turned out not to be out-of-Claude access but token efficiency: the CLI lets a session pay ~0 context until a ticket query is actually made, vs the MCP's always-on schema tax. See the CLI surface section above.
 - **Cross-project relations** — link from demo's `T120` to sample's `FEAT-04`? Probably not, but the schema doesn't preclude it.
 
 ---

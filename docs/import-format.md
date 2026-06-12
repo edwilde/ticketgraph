@@ -1,13 +1,13 @@
 # ticketgraph JSON Import Format
 
-The JSON intermediate format is the contract between source-specific parsers (e.g. the demo
-parser) and the generic `tickets.import_json` MCP tool.
+The JSON intermediate format is the contract between a source-specific parser (one you write for
+your `TICKETS.md` layout) and the generic `tickets.import_json` MCP tool.
 
 ## Schema
 
 ```json
 {
-  "project_id": "demo",
+  "project_id": "myproject",
   "tickets": [...],
   "relations": [...]
 }
@@ -34,7 +34,7 @@ parser) and the generic `tickets.import_json` MCP tool.
 | `effort`     | number \| null    | no       | `null`    | `1`, `2`, `3`, `5`, `8`, `13`, or `null`             |
 | `epic`       | string \| null    | no       | `null`    | Free text grouping label.                             |
 | `parent_id`  | string \| null    | no       | `null`    | Id of a parent ticket in the same project.            |
-| `created_by` | string            | no       | `"claude"`| Creator identifier (e.g. `"migrated:demo"`).      |
+| `created_by` | string            | no       | `"claude"`| Creator identifier (e.g. `"migrated:myproject"`).    |
 | `created_at` | string (ISO 8601) | no       | import time | Must be `YYYY-MM-DDTHH:MM:SS.sssZ` format.        |
 | `closed_at`  | string \| null    | no       | `null`    | ISO 8601. Set when status is `done`/`deferred`.       |
 | `tags`       | string[]          | no       | `[]`      | Tags (stored lowercase-trimmed).                     |
@@ -85,27 +85,19 @@ the fresh data is inserted.
 ## Typical migration flow
 
 ```bash
-# 1. Parse the source file into JSON intermediate
-node dist/parsers/demo.js ~/Scripts/demo/.ai/TICKETS.md --report > /tmp/demo.json
+# 1. Parse the source file into the JSON intermediate (my-parser.js is your parser)
+node my-parser.js /path/to/project/.ai/TICKETS.md > /tmp/myproject.json
 
 # 2. Dry-run: validate and inspect counts/warnings
-# Use tickets.import_json({ project: "demo", file: "/tmp/demo.json", dry_run: true })
+# Use tickets.import_json({ project: "myproject", file: "/tmp/myproject.json", dry_run: true })
 
 # 3. Live import
-# Use tickets.import_json({ project: "demo", file: "/tmp/demo.json" })
+# Use tickets.import_json({ project: "myproject", file: "/tmp/myproject.json" })
 ```
 
-## demo parser
+## Writing a parser
 
-The demo parser (`src/parsers/demo.ts`) converts a demo-format `TICKETS.md` to this
-intermediate. It is a pure function: `parseDemo(md: string): ImportFile`.
-
-CLI usage:
-
-```bash
-node dist/parsers/demo.js <input.md> [--report]
-```
-
-- Writes JSON to stdout.
-- `--report` writes a parse summary (ticket count, relation counts by kind, skipped/ambiguous
-  lines) to stderr.
+A parser converts your `TICKETS.md` layout into the intermediate above. Keep it a pure function —
+`(md: string) => ImportFile` — with file I/O confined to a thin CLI wrapper, so it stays
+unit-testable against fixture strings. The wrapper reads the file, runs the parser, and writes the
+JSON to stdout.

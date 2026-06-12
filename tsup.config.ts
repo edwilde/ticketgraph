@@ -2,7 +2,7 @@ import { defineConfig } from "tsup";
 import { cpSync } from "node:fs";
 
 export default defineConfig({
-  entry: ["src/server.ts", "src/parsers/demo.ts", "src/parsers/sample.ts"],
+  entry: ["src/server.ts"],
   format: ["esm"],
   outDir: "dist",
   target: "node20",

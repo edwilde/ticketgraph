@@ -5,7 +5,6 @@
 **Goal:** Add a friendly `ticketgraph mcp` command to start the MCP stdio server (additive — `--mcp`/no-args keep working), restructure the README to lead with the CLI, and ship it as v0.6.0 with a GitHub release.
 **Architecture:** `server.js` is a dual-mode entry: the entry switch (`server.ts:109-110`) picks server-mode vs CLI from `argv[0]`; server-mode calls `main()` (stdio MCP), CLI-mode calls `runCli()`. CLI commands are derived from the tool registry — but starting the server is a *mode*, not a tool, so `mcp` belongs in the entry switch, never the registry/catalogue.
 **Tech Stack:** TypeScript ESM, better-sqlite3, MCP SDK (stdio), vitest, tsup.
-**Project context cache:** `~/.claude/projects/-Users-user-ticketgraph/writing-plans-cache.md` (refreshed 2026-06-04)
 
 ---
 

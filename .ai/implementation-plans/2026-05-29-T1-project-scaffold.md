@@ -5,7 +5,6 @@
 **Goal:** Bootstrap an empty TypeScript ESM project with build/test/lint plumbing so subsequent tickets have a working `npm install`, `npm run build`, and `npm test`.
 **Architecture:** Single Node.js package, ESM-only, strict TS, ESBuild via tsup, vitest for tests. No source code beyond a `dist/server.js` stub that responds to `--help`.
 **Tech Stack:** TypeScript 5.x, Node ≥20, tsup, vitest, better-sqlite3 (declared only; not wired), @modelcontextprotocol/sdk (declared only; not wired).
-**Project context cache:** No canonical project guide files exist yet. Source of truth is `docs/specs/2026-05-28-ticketgraph-design.md`.
 
 ---
 
@@ -142,7 +141,7 @@
 **Decisions:**
 - `.gitignore` entries (one per line): `node_modules`, `dist`, `*.db`, `*.db-journal`, `*.db-wal`, `*.db-shm`, `coverage`, `.DS_Store`. WAL/SHM journals from `journal_mode = WAL` (spec §5) must not be committed.
 - `.editorconfig`: `root = true`, `[*]` → `indent_style = space`, `indent_size = 2`, `end_of_line = lf`, `charset = utf-8`, `trim_trailing_whitespace = true`, `insert_final_newline = true`.
-- `.prettierrc`: minimal — `{ "singleQuote": false, "semi": true, "trailingComma": "all", "printWidth": 100 }`. Matches Ed's default Prettier style; later tickets can revisit.
+- `.prettierrc`: minimal — `{ "singleQuote": false, "semi": true, "trailingComma": "all", "printWidth": 100 }`. Matches the author's default Prettier style; later tickets can revisit.
 - `LICENSE`: MIT, copyright "2026 Ed Wilde" per spec §12.
 - `README.md` stub: one-paragraph project description + link to the design spec + "MVP in progress — see `.ai/TICKETS.md`".
 

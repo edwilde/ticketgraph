@@ -10,7 +10,7 @@
 
 ## 1. Problem
 
-Three of Ed's projects (demo, sample, acme) track development work in dense `.ai/TICKETS.md` files. The largest (demo) is 4,127 lines / ~25,700 tokens. Every conversational query about tickets — "what's open?", "show me T123", "what changed today?" — forces Claude to read the entire file before it can answer.
+Three of the author's projects (demo, sample, acme) track development work in dense `.ai/TICKETS.md` files. The largest (demo) is 4,127 lines / ~25,700 tokens. Every conversational query about tickets — "what's open?", "show me T123", "what changed today?" — forces Claude to read the entire file before it can answer.
 
 The current cost per "outstanding tickets" question on demo is roughly one full TICKETS.md read every time the topic surfaces. That's a poor token economy for what is fundamentally a structured-data question.
 
@@ -18,15 +18,15 @@ The current cost per "outstanding tickets" question on demo is roughly one full 
 
 Build a Claude Code plugin (`ticketgraph`) that backs ticket state with a structured store and exposes it via MCP, so every common ticket query has a token cost in the hundreds, not the tens-of-thousands.
 
-The plugin is single-user, single-machine, and used exclusively by Ed in conjunction with Claude. There is no team-facing UI, no markdown export pipeline, and no plan for git-sync of ticket data.
+The plugin is single-user, single-machine, and used exclusively by the author in conjunction with Claude. There is no team-facing UI, no markdown export pipeline, and no plan for git-sync of ticket data.
 
 ## 3. Design principles
 
 1. **Every common query response fits in <2k tokens by default.** This is an acceptance criterion, not a hope. `tickets.list`, `tickets.search`, `tickets.stats`, `tickets.changed_since`, `tickets.next` all have summary-by-default shapes. Full descriptions are returned only by `tickets.get` and only for the requested ticket(s).
 2. **The MCP is the canonical store.** TICKETS.md files are not regenerated. They are migrated once at setup and then deleted. *→ Superseded 2026-05-30 (T21): regeneration is now supported via `tickets.export`, which writes a `.ai/TICKETS.md` snapshot carrying a loud generated-at banner. The DB remains the canonical store; the exported file is an explicitly drift-labelled, point-in-time view, never a source of truth.*
 3. **One global SQLite DB at `~/.claude/tickets.db`.** Cross-project queries are first-class. Project scoping is automatic from cwd; explicit `project: "<id>"` or `project: "all"` overrides.
-4. **Resist tool sprawl.** Storybloq has 53 MCP tools; we ship with ~20. Every tool is a thing Claude must remember and Ed must maintain.
-5. **YAGNI ruthlessly.** No CLI, no Mac app, no federation, no autonomous-mode state machine, no lessons/handovers/snapshots. Those concerns are handled by other tools Ed already uses (`/handoff`, auto-memory, `/writing-plans`, `/subagent-driven-development`). *→ "No CLI" superseded 2026-05-31 (T22–T26): a dual-mode CLI is now in scope, driven by token efficiency — the MCP injects all ~23 tool schemas into every connected session (~2–4k tokens of always-on context tax), whereas `ticketgraph <command>` invoked via Bash costs ~0 context until used. The CLI becomes the default and the MCP becomes opt-in (T26). The other YAGNI omissions stand.*
+4. **Resist tool sprawl.** Storybloq has 53 MCP tools; we ship with ~20. Every tool is a thing Claude must remember and the author must maintain.
+5. **YAGNI ruthlessly.** No CLI, no Mac app, no federation, no autonomous-mode state machine, no lessons/handovers/snapshots. Those concerns are handled by other tools the author already uses (`/handoff`, auto-memory, `/writing-plans`, `/subagent-driven-development`). *→ "No CLI" superseded 2026-05-31 (T22–T26): a dual-mode CLI is now in scope, driven by token efficiency — the MCP injects all ~23 tool schemas into every connected session (~2–4k tokens of always-on context tax), whereas `ticketgraph <command>` invoked via Bash costs ~0 context until used. The CLI becomes the default and the MCP becomes opt-in (T26). The other YAGNI omissions stand.*
 
 ## 4. Architecture
 
@@ -62,7 +62,7 @@ Anthropic's MCP SDK is most mature in TS. `better-sqlite3` ships with FTS5 enabl
 
 ### Why a single global DB
 
-Ed bounces between projects. A global DB lets `tickets.list({ project: "all", priority: "P0" })` work natively. SQLite's single-file model survives backup-by-`cp` trivially. The project_id discriminator on every row enforces logical separation without the operational cost of N separate files.
+the author bounces between projects. A global DB lets `tickets.list({ project: "all", priority: "P0" })` work natively. SQLite's single-file model survives backup-by-`cp` trivially. The project_id discriminator on every row enforces logical separation without the operational cost of N separate files.
 
 ### Project resolution from cwd
 
@@ -361,7 +361,7 @@ One small TypeScript parser per source format. Each emits the JSON intermediate 
 - **Already-superseded tickets** (demo T41 "superseded by T70"): row is created with `status=done`, a `T70 supersedes T41` relation (per the direction convention in §5) is added in the second pass.
 - **Tickets with no acceptance criteria block**: `description` field is the concatenated scope + ship-notes; `acceptance_criteria` is not a separate column.
 - **`closed_at` from narrative ship-notes**: a date like "shipped 2025-12-15" is normalised to `2025-12-15T00:00:00.000Z`. When no date is parseable, `closed_at` is left NULL and `status=done` is still authoritative.
-- **`created_by` during migration**: defaulted to `"migrated:<project_id>"` so post-migration audit reports can distinguish historical rows from anything Claude or Ed adds afterwards.
+- **`created_by` during migration**: defaulted to `"migrated:<project_id>"` so post-migration audit reports can distinguish historical rows from anything Claude or the author adds afterwards.
 
 ## 8. Search ranking and query semantics
 
@@ -461,7 +461,7 @@ Storybloq exists and solves an overlapping problem. Ticketgraph stays distinct b
 1. **Token efficiency is the explicit USP.** Every common query <2k tokens. Storybloq's per-file JSON model reads N files per list query; ticketgraph's SQLite + FTS5 reads summaries only.
 2. **Permissive license** (MIT planned) vs storybloq's PolyForm-NC.
 3. **Typed directional relations** (`blocks`, `follows_up`, `supersedes`, `relates_to` with notes) vs storybloq's single-kind `blockedBy`.
-4. **Tight scope.** No autonomous mode, no lessons, no handovers, no federation — Ed already has tools for those.
+4. **Tight scope.** No autonomous mode, no lessons, no handovers, no federation — the author already has tools for those.
 5. **No team-facing surfaces.** Single-user single-machine by design.
 
 Wins borrowed from storybloq: the `type` field, `parent_id` umbrella hierarchy, `next` recommendation tool, `validate` integrity tool.
@@ -494,7 +494,7 @@ Wins borrowed from storybloq: the `type` field, `parent_id` umbrella hierarchy, 
 
 ## 15. Effort sizing guide (operational, for Claude)
 
-Ed will not assign effort values. Claude will. This section is the reference rubric Claude consults when calling `tickets.add` or `tickets.update` with an `effort` value. It is operational documentation, not aspirational.
+the author will not assign effort values. Claude will. This section is the reference rubric Claude consults when calling `tickets.add` or `tickets.update` with an `effort` value. It is operational documentation, not aspirational.
 
 ### The scale
 
@@ -557,7 +557,7 @@ The §10 acceptance budgets are assertion-backed, not eyeballed. Every ticket la
   - **Budget** — response size measured against a seeded fixture (`tests/fixtures/seed-100.sql`, ~100 tickets / ~30 relations / ~50 audit rows). Each tool's §10 budget is an `expect(bytes).toBeLessThan(budget * 4)` assertion (bytes-over-4 is a conservative token proxy; §10 margins are wide enough that exact tokenisation isn't worth the dependency). Latency p99s are asserted with the same fixture.
 - **Parser fixtures are version-controlled.** demo and sample parser tests load from `tests/fixtures/demo/*.md` and `tests/fixtures/sample/*.md`, never the user's live `~/Scripts/<project>/.ai/TICKETS.md`. The live file changes underneath the tests and would make them flaky.
 - **Acceptance bullets in `TICKETS.md` are test specs.** Each Acceptance bullet maps to one named `describe`/`it`. No bullet without a test, no test without a bullet. `/review-implementation` enforces the round-trip.
-- **CI: GitHub Actions** (`.github/workflows/ci.yml`, ticket T13). Matrix: Node 20 LTS on `ubuntu-latest` and `macos-latest`. The macOS runner is non-negotiable — it catches the §13 `better-sqlite3` native-build risk before Ed hits it on his own machine. Workflow body: `npm ci && npm run build && npm test`. Local `npm test` green is still the developer gate; CI is the second opinion for macOS-specific breakage and reviewer-side regressions.
+- **CI: GitHub Actions** (`.github/workflows/ci.yml`, ticket T13). Matrix: Node 20 LTS on `ubuntu-latest` and `macos-latest`. The macOS runner is non-negotiable — it catches the §13 `better-sqlite3` native-build risk before the author hits it on their own machine. Workflow body: `npm ci && npm run build && npm test`. Local `npm test` green is still the developer gate; CI is the second opinion for macOS-specific breakage and reviewer-side regressions.
 
 ---
 

@@ -107,7 +107,7 @@
 
 ## Caveats & known risks
 
-- **Namespace-tag generalisation**: tagging every ticket with its lowercase namespace exceeds spec §7's literal UX/DESIGN-only tagging. It's a deliberate, low-risk superset that makes namespace-scoped queries work for all 24 namespaces. If Ed wants strict spec behaviour, restrict tagging to UX/DESIGN — one-line change.
+- **Namespace-tag generalisation**: tagging every ticket with its lowercase namespace exceeds spec §7's literal UX/DESIGN-only tagging. It's a deliberate, low-risk superset that makes namespace-scoped queries work for all 24 namespaces. If the author wants strict spec behaviour, restrict tagging to UX/DESIGN — one-line change.
 - **Multi-prefix ids by design**: sample ids are inherently namespaced; `tickets.add`'s numbering inference would refuse auto-id on this project (multiple prefixes) — which is correct; imported ids are explicit, and any future manual add must pass an explicit id.
 - **Blocked-by direction consistency**: both parsers must emit `from = blocker-ref, to = this-ticket` for `blocks`. Verify the demo parser did the same before shipping (a mismatch would make `blockers_of` wrong for one project).
 - **351 headings, 24 namespaces**: the fixture set (≥10) can't cover every namespace; pick the structurally distinct shapes (status variants, blockquote/AC bodies, blocked-by forms, epic boundaries), not one-per-namespace.

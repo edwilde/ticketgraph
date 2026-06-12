@@ -2,7 +2,7 @@
 
 > **For the implementer:** Use `subagent-driven-development` to implement task-by-task.
 
-**Goal:** Replace the README stub with a real README (problem, install, usage, tool reference, differentiation) and add `docs/usage.md` (example prompts → the MCP calls Claude makes) + a migration guide, so a non-Ed reader can install and use ticketgraph.
+**Goal:** Replace the README stub with a real README (problem, install, usage, tool reference, differentiation) and add `docs/usage.md` (example prompts → the MCP calls Claude makes) + a migration guide, so a new reader can install and use ticketgraph.
 **Architecture:** Docs only — no code. README links out to `docs/install.md` (T11) and `docs/import-format.md` (T9) rather than duplicating them. A new `docs/usage.md` carries the example-prompt narrative.
 **Tech Stack:** Markdown.
 
@@ -18,7 +18,7 @@
 - **Example prompts → MCP calls** (`docs/usage.md`): the acceptance criterion names three — "show me my open P0s", "what's blocking T7?", "find tickets about FTS". For each, show the natural-language prompt and the actual tool call Claude makes. Add a few more covering add/complete/stats/next.
 - **Migration guide**: for users coming from a flat `TICKETS.md` — point at the parsers (demo/sample as worked examples), the `import_json` dry-run → eyeball → live flow (spec §7), and `docs/import-format.md` for the JSON schema. Note that ticketgraph does NOT regenerate TICKETS.md (spec §2: the MCP becomes canonical; the markdown is migrated once then deleted).
 - **CI badge**: the README gets a CI badge once T13 lands. T12 adds a placeholder/commented badge line OR T13 adds it. **Decision:** T12 adds the badge markdown pointing at the expected workflow URL; if the workflow doesn't exist yet it renders as "unknown" until T13 — acceptable, and avoids a second README edit. Note the dependency.
-- **Acceptance** (TICKETS.md T12): README answers what-it-is / why-different-from-storybloq / how-to-install / three example queries; a non-Ed reader could follow it to a working install.
+- **Acceptance** (TICKETS.md T12): README answers what-it-is / why-different-from-storybloq / how-to-install / three example queries; a new reader could follow it to a working install.
 
 ---
 

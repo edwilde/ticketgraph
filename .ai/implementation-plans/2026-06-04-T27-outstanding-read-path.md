@@ -5,7 +5,6 @@
 **Goal:** Make answering "outstanding tickets?" a one- or two-call operation instead of the 9-call escalation captured in T27's two traces, by fixing `get` detail rendering, multi-id handling, empty-`next` explanation, and adding a not-done view — across CLI, MCP, and the skill.
 **Architecture:** Two "smart" fixes land in the **shared tool layer** (`next.ts`, `list.ts`) so **both MCP tool calls and the CLI** inherit them. Two front-end fixes land in the **CLI only** (`format.ts` detail rendering, `flags.ts` multi-id), because the MCP already returns full objects and takes structured input. The **skill + `--help`** make the cheap paths discoverable.
 **Tech Stack:** TypeScript (NodeNext, strict), better-sqlite3, vitest. Pure tool layer (`parseArgs → handle → plain data`) + two CLI front-ends over one `makeToolRegistry`.
-**Project context cache:** not used this run (project invariants read directly from `CLAUDE.md` + design spec).
 
 ---
 

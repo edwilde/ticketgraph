@@ -5,7 +5,6 @@
 **Goal:** Cut default response token count on the write tools and `tickets.get` by returning new/server-computed information only, with full data one opt-in flag away — without making any datum unrecoverable and without loosening any existing token budget.
 **Architecture:** Each tool's `handle()` returns a plain `TResult`. The MCP path (`server.ts:76`) emits raw `JSON.stringify(result)`; the CLI emits compact text by default (`cli/format.ts`) or JSON via `--format json`. Trimming `TResult` is the only change that saves tokens on the MCP + JSON paths; the compact renderer already drops non-displayed fields for ticket-shaped rows.
 **Tech Stack:** TypeScript ESM, better-sqlite3, vitest, tsup.
-**Project context cache:** `~/.claude/projects/-Users-user-ticketgraph/writing-plans-cache.md` (refreshed 2026-06-03)
 
 ---
 

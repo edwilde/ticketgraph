@@ -250,7 +250,7 @@ Other context:
 ## Caveats & known risks
 
 - **`next` blocker semantics are subtle**: a ticket is eligible if its only blockers are done/deferred. `blockers_of` reports ALL blockers regardless of status (it answers "what blocks this?", a structural question), while `next` filters to OPEN blockers (a workflow question). These are different by design — don't unify them.
-- **Spec vs TICKETS.md discrepancies** (resolved above): blockers_of is INCOMING blocks (spec §5), default depths follow spec §6 (related=1, blockers_of=2, children_of=2). If Ed wants TICKETS.md's numbers instead, it's a one-line change per tool.
+- **Spec vs TICKETS.md discrepancies** (resolved above): blockers_of is INCOMING blocks (spec §5), default depths follow spec §6 (related=1, blockers_of=2, children_of=2). If the author wants TICKETS.md's numbers instead, it's a one-line change per tool.
 - **Cycle safety**: `relates_to` is symmetric and `walkRelations(direction:both)` WILL revisit nodes without the `visited` guard. The guard is mandatory, not optional.
 - **`validate` orphan/dangling checks**: with FKs ON these states are unreachable through the tools, so the tests must fabricate corruption via `PRAGMA foreign_keys=OFF`. The checks still earn their keep against manual DB edits or future hard-delete tools (spec §5 rationale for the audit_log decoupling).
 - **`changed_since` `since` parsing**: accept ISO date (`2026-05-01`) and full datetime (`2026-05-01T12:00:00.000Z`). String comparison works because timestamps are lexicographically ordered ISO 8601 (spec §5). A bare date compares correctly against full datetimes.

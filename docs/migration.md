@@ -35,30 +35,17 @@ After step 4, Claude reads from the MCP tools instead of reading the file. That 
 
 ## Step 1 — Parse TICKETS.md to JSON
 
-ticketgraph ships two built-in parsers for known TICKETS.md formats:
+`TICKETS.md` files vary too much to auto-detect, so migration goes through a JSON intermediate: you write a small parser that turns your file into that shape, and `tickets.import_json` ingests it.
 
-### demo format
+The contract is the `ImportFile` type — a `project_id` string, a `tickets` array, and an optional `relations` array. See [docs/import-format.md](import-format.md) for the full schema.
 
-```sh
-node dist/parsers/demo.js /path/to/project/.ai/TICKETS.md --report > /tmp/myproject.json
-```
-
-### sample format
+Keep the parser a pure function `(md: string) => ImportFile` with file I/O in a thin CLI wrapper, so it stays unit-testable against fixture strings. A typical invocation writes the JSON intermediate to stdout:
 
 ```sh
-node dist/parsers/sample.js /path/to/project/.ai/TICKETS.md --report > /tmp/myproject.json
+node my-parser.js /path/to/project/.ai/TICKETS.md > /tmp/myproject.json
 ```
 
-Both parsers:
-- Write the JSON intermediate to stdout.
-- Write a parse summary (ticket count, relation counts by kind, skipped/ambiguous lines) to stderr when `--report` is passed.
-- Are pure functions — they do not touch the database.
-
-### Other formats
-
-If your TICKETS.md uses a different structure, write a small parser that produces the JSON intermediate shape. The contract is the `ImportFile` type: a `project_id` string, a `tickets` array, and an optional `relations` array. See [docs/import-format.md](import-format.md) for the full schema.
-
-The JSON intermediate is the only contract between parsers and `tickets.import_json`. There is no auto-detection of arbitrary formats — a per-format parser is always required.
+The JSON intermediate is the only contract between your parser and `tickets.import_json` — there is no auto-detection of arbitrary formats.
 
 ---
 

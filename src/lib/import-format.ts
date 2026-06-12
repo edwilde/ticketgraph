@@ -1,7 +1,7 @@
 /**
  * JSON intermediate format for ticket imports.
  *
- * Produced by parser tools (e.g. parseDemo) and consumed by tickets.import_json.
+ * Produced by parser tools (e.g. a format-specific parser) and consumed by tickets.import_json.
  * See docs/import-format.md for the full contract.
  */
 

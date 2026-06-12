@@ -156,10 +156,10 @@
 | # | Finding | Type | Decision |
 |---|---------|------|----------|
 | 1 | Workflow matches all TICKETS.md T13 requirements (triggers, matrix incl. macOS canary, concurrency, <40 lines, no extras) | Completed as planned | Verified structurally |
-| 2 | `actionlint` not installed locally | Deviation (acceptance gap) | Accepted with mitigation — installing it unprompted is an unwarranted system side effect; the YAML was validated structurally (15 checks) and GitHub validates the workflow on first run. If Ed wants the local actionlint gate, `brew install actionlint && actionlint .github/workflows/ci.yml`. |
+| 2 | `actionlint` not installed locally | Deviation (acceptance gap) | Accepted with mitigation — installing it unprompted is an unwarranted system side effect; the YAML was validated structurally (15 checks) and GitHub validates the workflow on first run. If the author wants the local actionlint gate, `brew install actionlint && actionlint .github/workflows/ci.yml`. |
 
 ### Technical Context & Learnings
-- **The macOS matrix leg is the `better-sqlite3` native-build canary** (spec §13) — non-negotiable; it catches native-module breakage before Ed hits it.
+- **The macOS matrix leg is the `better-sqlite3` native-build canary** (spec §13) — non-negotiable; it catches native-module breakage before the author hits it.
 - **`fail-fast: false`** so an ubuntu failure doesn't cancel the macOS run (you want to see both legs).
 - **No test retries** — the suite was deliberately stabilised (generous spawn-test timing bounds tied to `it` timeouts, median latency assertion, per-child SIGKILL capture, temp-DB isolation) specifically so CI on contended 2-core runners stays green without retries.
 - **Double build** (explicit `npm run build` step + vitest globalSetup build) is intentional: the explicit step surfaces a build break as its own legible CI step.

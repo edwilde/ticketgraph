@@ -160,7 +160,7 @@ Start it with `ticketgraph mcp` (or `ticketgraph --mcp`, or no arguments). To en
 
 If you have an existing `.ai/TICKETS.md`, ticketgraph can ingest it. The model: ticketgraph becomes the canonical store; TICKETS.md is migrated once and then deleted. For a read-only view, `export` can regenerate a `.ai/TICKETS.md` snapshot — but it carries a loud generated-at banner and the DB stays the source of truth (it is never re-ingested).
 
-Built-in parsers ship for demo and sample formats. Other formats need a small parser to the JSON intermediate shape.
+Migration goes through a JSON intermediate: write a small parser that turns your `TICKETS.md` into that shape, then `import_json` ingests it (dry-run first, then live). The shape is intentionally simple.
 
 See [docs/migration.md](docs/migration.md) for the full flow and [docs/import-format.md](docs/import-format.md) for the JSON schema.
 

@@ -7,7 +7,6 @@
 **Goal:** Add a `tickets.export` MCP tool that renders the active project's tickets to a drift-labelled markdown file (default `<root>/.ai/TICKETS.md`), stamped with a loud generated-at banner, and returns a compact result.
 **Architecture:** A pure renderer (`src/lib/export-markdown.ts`) turns assembled ticket records + an export timestamp into a deterministic markdown string; a thin tool (`src/tools/export.ts`) resolves the project, collects tickets/tags/relations from the DB, renders, writes the file, and returns `{ path, bytes, ticket_count, exported_at }`.
 **Tech Stack:** TypeScript ESM, better-sqlite3, `node:fs`/`node:path`, vitest.
-**Project context cache:** `~/.claude/projects/-Users-user-ticketgraph/writing-plans-cache.md` (refreshed 2026-05-30)
 
 ---
 
