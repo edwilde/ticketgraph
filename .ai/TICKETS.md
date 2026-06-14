@@ -38,7 +38,7 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 ## P0 — Foundation
 
 ### T1 — Project scaffold
-**Status:** Open.
+**Status:** Done (2026-05-29).
 **Blockers:** none.
 **Scope:**
 - `package.json` — name `@edwilde/ticketgraph`, type `module`, Node `>=20`. Bin entry `ticketgraph` pointing at the built MCP server.
@@ -220,7 +220,7 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 ## v1.1 — Promoted from backlog
 
 ### T15 — Slash commands bundled with the plugin
-**Status:** Open.
+**Status:** Done (2026-05-29).
 **Blockers:** none (the MCP tool surface T5–T8 is complete; slash commands are thin wrappers over it).
 **Why:** the MCP tools are the canonical interface, but a few high-frequency actions are quicker as typed slash commands than as natural-language prompts. Bundling them with the plugin (they ship in `.claude-plugin/`, namespaced `/ticketgraph:<name>`) makes the common loop fast and discoverable.
 **Scope:**
@@ -245,7 +245,7 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 - Runs the four-stage dream-skills pipeline like every other ticket. The plan's first job is to pin down the current plugin slash-command file format (consult Claude Code docs / the `claude-code-guide`).
 
 ### T16 — Migration runner: detect & clearly report a version-ahead-of-schema DB
-**Status:** Open. **Type:** bug (robustness/UX). **Effort:** 2.
+**Status:** Done (2026-05-29, v0.2.0). **Type:** bug (robustness/UX). **Effort:** 2.
 **Found by:** a live migration session (2026-05-29) — `register_project` failed with a cryptic `no such table: projects` on a DB that had `user_version=1` but zero tables.
 **Root cause:** during the T3→T4 dev window, `001_init.sql` shipped first as an empty placeholder that bumped `user_version` to 1, then was filled with the real schema in T4. Any `~/.claude/tickets.db` created in that window has `user_version=1` and no tables. The migration runner trusts `user_version` and applies only migrations with `N > current` — so it applies nothing, the schema never lands, and the failure surfaces much later as a cryptic SQLite error from the first tool that touches a table.
 **Not recurring for fresh installs** (001 is now the full schema, so a new DB gets all tables at version 1) — but the runner has NO guard against a version/schema mismatch from ANY cause (interrupted migration, partially-applied future migration, a hand-edited DB). The cryptic-failure-much-later mode is the real defect.
@@ -261,7 +261,7 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 **Notes:** runs the four-stage pipeline. Captured in the migration-session memory anchor referenced by the feedback.
 
 ### T17 — demo parser fidelity enhancements
-**Status:** Open. **Type:** enhancement (NOT a bug — current behaviour matches spec §7). **Effort:** 3.
+**Status:** Done (2026-05-29, v0.2.0). **Type:** enhancement (NOT a bug — current behaviour matches spec §7). **Effort:** 3.
 **Found by:** the same live migration session. Each item below is *working as designed per spec §7*; this ticket is to improve migration fidelity if/when it matters, with `import_json({ force: true })` re-run after a fix.
 **Scope (each item is opt-in; decide per item during planning):**
 1. **Body-level priority override.** Priority/epic are derived from the `## P<n> — Name` section heading (spec §7). A ticket whose body says e.g. "Refactor P1" while sitting under `## P3 — Polish` (real example: T112) imports as P3. *Option:* when a body line carries an explicit `P<n>` priority marker, let it override the section default. *Risk:* prose false-positives — must be a precise pattern, not any "P1" substring.
@@ -274,7 +274,7 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 **Notes:** runs the four-stage pipeline. Re-run migration with `force: true` after merging to refresh imported data.
 
 ### T18 — Orphaned MCP server processes accumulate (no stdin-close handler; `shutdown()` hangs)
-**Status:** Open. **Type:** bug (resource leak / lifecycle). **Effort:** 2.
+**Status:** Done (2026-05-29, v0.3.0). **Type:** bug (resource leak / lifecycle). **Effort:** 2.
 **Found by:** a live debugging session (2026-05-29) diagnosing `kernel_task` CPU saturation on the author's M1 Pro. The machine was thrashing swap (50 GB swap 99.5% full, load avg ~520, 0% idle). Root cause was ~60 orphaned `node dist/server.js` processes (~180 MB each, ≈10 GB RAM), all reparented to launchd (`ppid 1`), accumulated over a 4-day uptime. `pkill` (SIGTERM) failed to reap them — only `kill -9` worked, which is itself a symptom (see defect #2).
 **Root cause (two compounding defects):**
 1. **No stdin-EOF shutdown.** The stdio server only handles `SIGTERM`/`SIGINT`. When the parent Claude Code session exits it closes the stdio pipes but does not reliably signal the child; with no `process.stdin` `end`/`close` handler the orphaned server runs forever and reparents to launchd. Every session that spawns the server and exits uncleanly leaks one process.
@@ -313,7 +313,7 @@ Each ticket ran the four-stage dream-skills pipeline (writing-plans → subagent
 **Notes:** runs the four-stage pipeline. Relates to T20 — `tickets.add`'s own full-row return is a T20 candidate. Effort **3**: the logic exists; the work is the clean `insertBatch` factoring + auto-id-across-batch + tests.
 
 ### T20 — Token-efficiency review of tool response shapes
-**Status:** Open. **Type:** spike → enhancement (token efficiency). **Effort:** 3.
+**Status:** Done (2026-06-03). **Type:** spike → enhancement (token efficiency). **Effort:** 3.
 **Found by:** the same design discussion (2026-05-29). Question to answer: **is there scope to cut response token count without losing key data?** Several tools return more than the caller strictly needs — most clearly `tickets.add`, which returns the full 13-field row (`add.ts:241-245`) that largely echoes the inputs Claude just sent plus defaults; the only genuinely new datum is the assigned `id`.
 **Scope (audit first, then targeted trims — do NOT trim blind):**
 - Inventory every tool's response shape and classify each returned field as: (a) **new information** the caller didn't send (assigned id, computed counts, server defaults, relations, audit), (b) **echo** of caller input, or (c) **derivable/rarely-needed**.
@@ -489,7 +489,7 @@ A second thin front-end over the existing `makeToolRegistry` so every tool is re
 ---
 
 ### T28 — README CLI-first restructure + `ticketgraph mcp` command
-**Status:** Open. **Type:** enhancement (docs + small CLI surface). **Effort:** 2.
+**Status:** Done (2026-06-04, v0.6.0). **Type:** enhancement (docs + small CLI surface). **Effort:** 2.
 **Found by:** user (2026-06-04). The README still front-loads the MCP server, but since v0.4.0 the **CLI is the default and the MCP is opt-in**. Two changes, one ticket: (1) a friendly `ticketgraph mcp` command to start the server, and (2) a CLI-first README.
 
 **Part A — `ticketgraph mcp` command.**
