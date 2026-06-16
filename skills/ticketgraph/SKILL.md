@@ -63,6 +63,7 @@ Write tools return only the data you can't reconstruct — they do **not** echo 
 ## Common mistakes
 
 - Reading or grepping `.ai/TICKETS.md` to answer a query → use the CLI; the markdown is a generated snapshot, not the store.
+- Answering "what's outstanding/open" with a pile of calls (`list` + `stats` + `blockers_of` + version checks) → a status/list question is **one** `list` call (`ticketgraph list` or `ticketgraph list --status outstanding`). Only reach for `stats`, `blockers_of`, or `get` when the user actually asks "why is X blocked", wants counts, or wants per-ticket detail.
 - Parsing `compact` output programmatically → add `--format json`.
 - Guessing flag names (especially for write commands) → run `ticketgraph <command> --help`.
 - Using `ticketgraph get` in a loop per ticket → use `ticketgraph get T1 T2 T3` (bare positionals, max 10) or `--ids T1 T2 T3` instead.
