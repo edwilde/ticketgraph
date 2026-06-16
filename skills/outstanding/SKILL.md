@@ -1,9 +1,9 @@
 ---
-name: outstanding-tickets
-description: Show the project's outstanding (not-done) tickets in a single token-cheap ticketgraph call. Use when the user asks "what's outstanding", "outstanding tickets", "what's still open", or invokes /outstanding-tickets. Does the minimum — one `list` call — and stops.
+name: outstanding
+description: Show the project's outstanding (not-done) tickets in a single token-cheap ticketgraph call. Use when the user asks "what's outstanding", "outstanding tickets", "what's still open", or invokes /ticketgraph:outstanding. Does the minimum — one `list` call — and stops.
 ---
 
-# outstanding-tickets
+# outstanding
 
 Show every not-done ticket in **one** `ticketgraph` call, then stop. This skill exists to enforce the minimum: a status question is one `list`, not a pile of follow-up queries.
 

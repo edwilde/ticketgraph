@@ -53,7 +53,16 @@ Pass `--format json` to any read command for machine-readable output (`--format 
 
 For prerequisites, plugin mode, manual registration, and troubleshooting, see [docs/install.md](docs/install.md).
 
-> **Note:** npm and Claude Code marketplace distribution are planned but not yet available. Use the dev install above.
+### Install the skills as a plugin
+
+The bundled skills install via the Claude Code plugin marketplace:
+
+```
+/plugin marketplace add edwilde/ticketgraph
+/plugin install ticketgraph@ticketgraph
+```
+
+> **Note:** this installs the **skills** only. They drive the `ticketgraph` CLI, so you still need the binary on your PATH via the dev install above. (`npm install -g @edwilde/ticketgraph` is planned but not yet published.)
 
 ---
 

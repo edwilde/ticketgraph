@@ -538,10 +538,10 @@ Restructure so the CLI is the lede and MCP is a short optional section:
 
 ### T30 — Grow the plugin into a curated family of command-wrapper skills
 **Status:** Open. **Type:** feature (DX / packaging). **Effort:** 3.
-**Why (user-requested, 2026-06-16):** `/outstanding-tickets` (v0.10.0) is the first thin "do the minimum, then stop" command-wrapper skill over the CLI — it saves tokens on a common question *and* dogfoods the token-cheap pitch. The repo already ships a plugin manifest + the `ticketgraph` reference skill, but there's no deliberate set of one-shot command wrappers and no curation of which CLI verbs earn one. This ticket builds that family out and confirms the plugin packaging surfaces them.
+**Why (user-requested, 2026-06-16):** the `outstanding` skill (`/ticketgraph:outstanding`; shipped v0.10.0 as `outstanding-tickets`, renamed v0.11.0) is the first thin "do the minimum, then stop" command-wrapper skill over the CLI — it saves tokens on a common question *and* dogfoods the token-cheap pitch. The repo already ships a plugin manifest + the `ticketgraph` reference skill, but there's no deliberate set of one-shot command wrappers and no curation of which CLI verbs earn one. This ticket builds that family out and confirms the plugin packaging surfaces them.
 **Scope:**
-- Decide the wrapper family. Candidates (each must stay one-or-two calls and *stop*, per the `/outstanding-tickets` discipline): `/next-ticket` (`next`), `/ticket <id>` (`get`), `/find-tickets <q>` (`search`), `/blocked-tickets` (`list --status blocked`), `/ticket-stats` (`stats`). Pick the few that are genuinely common; skip verbs that don't benefit from a wrapper.
-- Each wrapper = its own tiny `skills/<name>/SKILL.md`, auto-discovered, consistent in shape with `outstanding-tickets` (one command, present, stop; explicit "do NOT pile on other calls").
+- Decide the wrapper family. Name each skill tersely so the plugin namespace carries the domain — `/ticketgraph:<verb>`, not `/ticketgraph:<verb>-tickets`. Candidates (each must stay one-or-two calls and *stop*, per the `outstanding` discipline): `next`, `get`, `find` (`search`), `blocked` (`list --status blocked`), `stats`. Pick the few that are genuinely common; skip verbs that don't benefit from a wrapper.
+- Each wrapper = its own tiny `skills/<name>/SKILL.md`, auto-discovered, consistent in shape with `outstanding` (one command, present, stop; explicit "do NOT pile on other calls").
 - Confirm plugin installability/discoverability: whether a `.claude-plugin/marketplace.json` (or equivalent) is needed so users install the **plugin** (bundling all wrappers) rather than copying one skill. Today only `plugin.json` exists.
 - Document the wrapper family (README + `docs/`) so the skills are discoverable.
 **Acceptance:**
@@ -549,6 +549,7 @@ Restructure so the CLI is the lede and MCP is a short optional section:
 - Plugin install path documented; the manifest/marketplace surfaces the bundled skills.
 - Build + tests green; version bumped + GitHub release published per the repo's release rule.
 **Notes:** the repo is *already* a plugin (manifest + auto-discovered `skills/`), so this is **grow + curate + make installable**, not "become a plugin." Keep each wrapper surgical — the whole value is that they refuse to over-fetch; resist adding options or follow-up calls inside them.
+**Progress (2026-06-16, v0.11.0):** the *installable* piece landed — added `.claude-plugin/marketplace.json` (repo doubles as its own single-plugin marketplace, `source: "./"`, no `version` so `plugin.json` stays the single source) + install docs in README/`docs/install.md`. Confirmed via claude-code-guide against the current plugin-marketplace docs. **Caveat documented:** `/plugin install` delivers skills only; the `ticketgraph` binary still needs a per-platform build (native `better-sqlite3`), so npm publish remains the real binary-distribution path (deferred — user chose marketplace-only for now). Also renamed the skill `outstanding-tickets` → `outstanding` so the plugin namespace reads cleanly (`/ticketgraph:outstanding`, not the redundant `…:outstanding-tickets`) — establishing the terse-name convention for the rest of the family. **Still open:** ≥1 more wrapper skill (only `outstanding` so far; acceptance wants ≥2) and the npm-publish decision.
 
 ---
 

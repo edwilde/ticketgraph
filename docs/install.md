@@ -66,6 +66,21 @@ Until then, use the dev install above and invoke via `node /absolute/path/to/tic
 
 ---
 
+## Plugin install (marketplace)
+
+The repo doubles as its own plugin marketplace (`.claude-plugin/marketplace.json`), so the bundled skills install straight from GitHub:
+
+```
+/plugin marketplace add edwilde/ticketgraph
+/plugin install ticketgraph@ticketgraph
+```
+
+`/reload-plugins` (or a fresh session) then surfaces the skills, namespaced under the plugin (e.g. `/ticketgraph:<skill>`).
+
+> **Important:** this installs the **skills only** — the prompt-level wrappers around the CLI. They run `ticketgraph <command>`, so the `ticketgraph` **binary must already be on your PATH** (via the dev install above; `npm install -g @edwilde/ticketgraph` is planned but not yet published). The plugin clone does **not** build the native `better-sqlite3` addon, so a plugin install alone does not give you a working CLI.
+
+---
+
 ## Plugin install (dev mode)
 
 When Claude Code loads ticketgraph **as a plugin**, the slash commands and `CLAUDE.md` pointer are active, but the MCP server is **opt-in** (see below). Use this route when iterating on the plugin itself.
@@ -163,7 +178,7 @@ claude mcp get ticketgraph
 
 Inside a Claude Code session:
 - `/mcp` — shows all connected servers; `ticketgraph` should appear as connected.
-- Call tool `tickets.ping` — returns `{ ok: true, version: "0.10.0", db_path: "...", schema_version: 1 }`.
+- Call tool `tickets.ping` — returns `{ ok: true, version: "0.11.0", db_path: "...", schema_version: 1 }`.
 
 ---
 

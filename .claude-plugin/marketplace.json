@@ -1,0 +1,17 @@
+{
+  "name": "ticketgraph",
+  "owner": {
+    "name": "Ed Wilde"
+  },
+  "description": "Token-efficient ticket queries over SQLite — CLI (ticketgraph) + opt-in MCP server.",
+  "plugins": [
+    {
+      "name": "ticketgraph",
+      "source": "./",
+      "description": "Token-efficient ticket queries over SQLite. Bundles the ticketgraph skills (incl. /outstanding-tickets). Requires the `ticketgraph` CLI binary — see install notes.",
+      "repository": "https://github.com/edwilde/ticketgraph",
+      "license": "MIT",
+      "keywords": ["mcp", "tickets", "sqlite", "claude-code"]
+    }
+  ]
+}
