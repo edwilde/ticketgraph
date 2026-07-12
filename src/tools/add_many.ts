@@ -52,7 +52,7 @@ export function makeAddManyTool(
   return {
     name: "tickets.add_many",
     description:
-      "Create many tickets (and optional relations) in ONE transaction. Returns the created ticket ids (not full rows). All-or-nothing: one invalid ticket rolls back the whole batch. Tickets without an id have ids auto-inferred from the project's existing ticket ids; auto-id'd tickets CANNOT be referenced as a parent_id or relation endpoint within the same call (their ids aren't known at author time) — give any referenced ticket an explicit id.",
+      "Create many tickets (and optional relations) in ONE transaction. Returns the created ticket ids (not full rows). Size each ticket as you log it: set `effort` to a Fibonacci story-point value (1, 2, 3, 5, 8, 13) per the effort-field scale, leaving it unset only for genuinely unknown scope. All-or-nothing: one invalid ticket rolls back the whole batch. Tickets without an id have ids auto-inferred from the project's existing ticket ids; auto-id'd tickets CANNOT be referenced as a parent_id or relation endpoint within the same call (their ids aren't known at author time) — give any referenced ticket an explicit id.",
     inputSchema: {
       type: "object",
       properties: {
@@ -70,7 +70,13 @@ export function makeAddManyTool(
               type: { type: "string", enum: ["task", "bug", "spike", "followup", "umbrella"] },
               epic: { type: "string", nullable: true },
               parent_id: { type: "string", nullable: true },
-              effort: { type: "number", enum: [1, 2, 3, 5, 8, 13], nullable: true },
+              effort: {
+                type: "number",
+                enum: [1, 2, 3, 5, 8, 13],
+                nullable: true,
+                description:
+                  "Fibonacci story points, estimated at creation. 1=trivial (~15 min); 2=small; 3=a normal day's work (default when scope is known); 5=meaty (~half a day); 8=big (~full day); 13=split it first. Null = not sized yet (prefer null over a wrong guess for spikes/unbounded work; umbrellas stay null).",
+              },
               created_by: { type: "string" },
               tags: { type: "array", items: { type: "string" } },
             },

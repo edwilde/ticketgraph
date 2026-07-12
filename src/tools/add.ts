@@ -61,7 +61,8 @@ export function makeAddTool(db: Database.Database, getClientRoots: GetClientRoot
   return {
     name: "tickets.add",
     description:
-      "Create a new ticket. If id is omitted, the server infers the next id from the project's existing ticket ids.",
+      "Create a new ticket. If id is omitted, the server infers the next id from the project's existing ticket ids. " +
+      "Size the ticket as you log it: set `effort` to a Fibonacci story-point value (1, 2, 3, 5, 8, 13) using the scale in the effort field. Leave it unset only when scope is genuinely unknown (a spike, or unbounded work) — a null effort shows as '-' in list output, so don't skip it out of habit.",
     inputSchema: {
       type: "object",
       properties: {
@@ -74,7 +75,13 @@ export function makeAddTool(db: Database.Database, getClientRoots: GetClientRoot
         type: { type: "string", enum: ["task", "bug", "spike", "followup", "umbrella"] },
         epic: { type: "string", nullable: true },
         parent_id: { type: "string", nullable: true },
-        effort: { type: "number", enum: [1, 2, 3, 5, 8, 13], nullable: true },
+        effort: {
+          type: "number",
+          enum: [1, 2, 3, 5, 8, 13],
+          nullable: true,
+          description:
+            "Fibonacci story points, estimated at creation. 1=trivial/mechanical (~15 min); 2=small, one module; 3=a normal day's work (default when scope is known); 5=meaty, ~half a day; 8=big, ~full day; 13=split it first. Anchor against tickets already sized, not wall-clock. Null = not sized yet — prefer null over a wrong guess for spikes/unbounded work; umbrella tickets stay null.",
+        },
         created_by: { type: "string" },
         tags: { type: "array", items: { type: "string" } },
         full: { type: "boolean", description: "Return the full ticket row instead of the lean default." },

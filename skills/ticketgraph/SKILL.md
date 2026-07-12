@@ -40,6 +40,8 @@ If `ticketgraph` is not on PATH, it isn't set up here — fall back to whatever 
 
 Mutating commands (`add`, `add_many`, `update`, `link`, `unlink`, `set_parent`, `append_to_description`, `add_tag`, `remove_tag`, `import_json`, `export`) exist too. Each change writes an audit entry. Confirm exact flags with `<command> --help` before running — e.g. `ticketgraph add --title "..." --type bug`, `ticketgraph update T5 --status done`. Use `add_many` to create many tickets in one transaction via `--json '<obj>'` (or `--json -` for stdin).
 
+**Size effort when you log a ticket.** Set `--effort` to a Fibonacci story-point value as you create it (1 trivial · 2 small · 3 a normal day's work / the default when scope is known · 5 meaty · 8 big · 13 split it first). Anchor against tickets already sized rather than guessing wall-clock. Leave it off only when scope is genuinely unknown (spike/unbounded) — an unsized ticket shows as `-` in `list`/`/outstanding` output, so don't skip it out of habit. Re-estimate with `update T5 --effort 5` when scope shifts.
+
 ## Lean by default (cheaper output)
 
 Write tools return only the data you can't reconstruct — they do **not** echo the whole ticket row back. `add` → `{ id, status, created_at }`; `update` → `{ id, changed, closed_at?, audit_entries }`; `set_parent` → `{ id, parent_id, changed }`; `append_to_description` → `{ id, description }`. This is the cheap path — keep it. Only add `--full` when you genuinely need the complete row back in the same call (rare; you usually just sent those fields).
