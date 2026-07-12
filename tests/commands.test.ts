@@ -22,6 +22,7 @@ const EXPECTED_COMMANDS = [
   "tickets-next",
   "tickets-open",
   "tickets-done",
+  "todo",
 ] as const;
 
 const EXPECTED_TOOLS: Record<string, string> = {
@@ -30,9 +31,10 @@ const EXPECTED_TOOLS: Record<string, string> = {
   "tickets-next": "tickets.next",
   "tickets-open": "tickets.list",
   "tickets-done": "tickets.update",
+  todo: "tickets.add",
 };
 
-const ARGS_COMMANDS = new Set(["tickets-add", "tickets-done"]);
+const ARGS_COMMANDS = new Set(["tickets-add", "tickets-done", "todo"]);
 
 function parseFrontmatter(content: string): { description: string } {
   // Split on YAML fence --- (first two occurrences)
@@ -45,7 +47,7 @@ function parseFrontmatter(content: string): { description: string } {
 }
 
 describe("commands/ directory", () => {
-  it("contains exactly the five expected command files", () => {
+  it("contains every expected command file", () => {
     for (const name of EXPECTED_COMMANDS) {
       const filepath = resolve(COMMANDS_DIR, `${name}.md`);
       expect(existsSync(filepath), `${name}.md should exist`).toBe(true);
