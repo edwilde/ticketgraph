@@ -1,6 +1,6 @@
 {
   "name": "ticketgraph",
-  "description": "Token-efficient ticket queries over SQLite — CLI (ticketgraph) + opt-in MCP server.",
+  "description": "Token-efficient ticket queries over SQLite: CLI (ticketgraph) + opt-in MCP server.",
   "version": "0.13.0",
   "author": {
     "name": "Ed Wilde"
