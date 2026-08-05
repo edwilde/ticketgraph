@@ -25,8 +25,8 @@ your `TICKETS.md` layout) and the generic `tickets.import_json` MCP tool.
 
 | Field        | Type              | Required | Default   | Allowed values                                        |
 |--------------|-------------------|----------|-----------|-------------------------------------------------------|
-| `id`         | string            | yes      | —         | Any non-empty string unique within the project.       |
-| `title`      | string            | yes      | —         | Non-empty string.                                     |
+| `id`         | string            | yes      | n/a       | Any non-empty string unique within the project.       |
+| `title`      | string            | yes      | n/a       | Non-empty string.                                     |
 | `description`| string            | no       | `""`      | Free text.                                            |
 | `status`     | string            | no       | `"open"`  | `open`, `in_progress`, `blocked`, `done`, `deferred`  |
 | `priority`   | string \| null    | no       | `null`    | `P0`, `P1`, `P2`, `P3`, or `null`                    |
@@ -53,16 +53,16 @@ your `TICKETS.md` layout) and the generic `tickets.import_json` MCP tool.
 `tickets.import_json` writes all data in a **single transaction** using three passes, so forward
 references (a child ticket listed before its parent) are safe:
 
-1. **Pass 1 — insert tickets**: all tickets are inserted with `parent_id = NULL`. Tags are
+1. **Pass 1, insert tickets**: all tickets are inserted with `parent_id = NULL`. Tags are
    inserted alongside each ticket. A back-dated `_created` audit row is written with
    `changed_at = created_at` (preserving history for `tickets.changed_since`).
 
-2. **Pass 2 — update parent_id**: tickets that had a `parent_id` get it set. By this point all
+2. **Pass 2, update parent_id**: tickets that had a `parent_id` get it set. By this point all
    tickets exist, so foreign-key constraints are satisfied regardless of file order.
 
-3. **Pass 3 — insert relations**: relations whose both endpoints exist (in the file or already in
-   the DB) are inserted. Dangling relations (missing endpoint) are skipped and logged as warnings
-   — they do not abort the import.
+3. **Pass 3, insert relations**: relations whose both endpoints exist (in the file or already in
+   the DB) are inserted. Dangling relations (missing endpoint) are skipped and logged as warnings;
+   they do not abort the import.
 
 ## dry_run
 
@@ -97,7 +97,7 @@ node my-parser.js /path/to/project/.ai/TICKETS.md > /tmp/myproject.json
 
 ## Writing a parser
 
-A parser converts your `TICKETS.md` layout into the intermediate above. Keep it a pure function —
-`(md: string) => ImportFile` — with file I/O confined to a thin CLI wrapper, so it stays
+A parser converts your `TICKETS.md` layout into the intermediate above. Keep it a pure function,
+`(md: string) => ImportFile`, with file I/O confined to a thin CLI wrapper, so it stays
 unit-testable against fixture strings. The wrapper reads the file, runs the parser, and writes the
 JSON to stdout.

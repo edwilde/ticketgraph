@@ -1,6 +1,6 @@
-# ticketgraph — Usage examples
+# ticketgraph usage examples
 
-These examples show the natural-language prompts you give Claude and the tool calls it makes in response. Every call listed here matches a real tool signature — cross-checked against `src/tools/`.
+These examples show the natural-language prompts you give Claude and the tool calls it makes in response. Every call listed here matches a real tool signature, cross-checked against `src/tools/`.
 
 ---
 
@@ -51,11 +51,11 @@ Token-cheap ticket queries via `ticketgraph <command>` (read: list, get, search,
 
 ## Project scoping
 
-When you call a tool without an explicit `project` argument, ticketgraph resolves the active project from your current workspace (the MCP client's advertised roots, matched against registered `root_path` values by longest-prefix). Most of the time you don't need to think about this — open a project in Claude Code and ticket queries automatically scope to it.
+When you call a tool without an explicit `project` argument, ticketgraph resolves the active project from your current workspace (the MCP client's advertised roots, matched against registered `root_path` values by longest-prefix). Most of the time you don't need to think about this: open a project in Claude Code and ticket queries automatically scope to it.
 
-- Omit `project` — auto-scope from workspace.
-- `project: "<id>"` — override to a specific project.
-- `project: "all"` — cross-project reads (valid on `tickets.list`, `tickets.search`, `tickets.stats`).
+- Omit `project` to auto-scope from workspace.
+- `project: "<id>"` overrides to a specific project.
+- `project: "all"` runs cross-project reads (valid on `tickets.list`, `tickets.search`, `tickets.stats`).
 
 For the resolution algorithm detail, see §4 of the [design spec](specs/2026-05-28-ticketgraph-design.md).
 
@@ -73,7 +73,7 @@ Five slash commands are bundled with the plugin for the high-frequency loop. The
 | `/ticketgraph:tickets-open` | List all open, in-progress, and blocked tickets | `ticketgraph list` |
 | `/ticketgraph:tickets-done [id]` | Mark a ticket as done | `ticketgraph update --json '{"id":"…","patch":{"status":"done"}}'` |
 
-**Activation:** after install or `/reload-plugins`, verify with `/ticketgraph:tickets-status` — it should return the current project's stats.
+**Activation:** after install or `/reload-plugins`, verify with `/ticketgraph:tickets-status`. It should return the current project's stats.
 
 **Manual acceptance checklist:**
 1. `/reload-plugins` (dev) or reinstall → the five commands appear under `/ticketgraph:` in the slash menu with their descriptions.
@@ -94,7 +94,7 @@ Five slash commands are bundled with the plugin for the high-frequency loop. The
 tickets.list({ "priority": "P0" })
 ```
 
-**Why:** `tickets.list` filters on `priority` and defaults to status `open`, `in_progress`, `blocked` — so done tickets are excluded automatically. Returns a summary row per ticket (no descriptions), well under 2k tokens for typical backlogs.
+**Why:** `tickets.list` filters on `priority` and defaults to status `open`, `in_progress`, `blocked`, so done tickets are excluded automatically. Returns a summary row per ticket (no descriptions), well under 2k tokens for typical backlogs.
 
 ---
 
@@ -135,7 +135,7 @@ tickets.add({ "title": "Tighten the ranking" })
 
 **Why:** `tickets.add` only requires `title`. The server auto-generates the next id from the project's existing ticket ids (e.g. `T42`). Status defaults to `open`, type to `task`. Returns a lean `{ id, status, created_at }` by default; pass `full: true` (CLI `--full`) to get the complete 13-field row.
 
-Optional fields you can add: `description`, `status`, `priority` (`P0`–`P3`), `type` (`task`, `bug`, `spike`, `followup`, `umbrella`), `effort` (Fibonacci: 1, 2, 3, 5, 8, 13), `epic`, `parent_id`, `tags`.
+Optional fields you can add: `description`, `status`, `priority` (`P0`-`P3`), `type` (`task`, `bug`, `spike`, `followup`, `umbrella`), `effort` (Fibonacci: 1, 2, 3, 5, 8, 13), `epic`, `parent_id`, `tags`.
 
 ---
 
@@ -174,7 +174,7 @@ tickets.next({})
 tickets.changed_since({ "since": "2026-05-29T00:00:00Z" })
 ```
 
-**Why:** `tickets.changed_since` slices the audit log from a given ISO timestamp. Returns each change as `{ ticket_id, field, old_value, new_value, changed_at }`, sorted newest-first. Default limit 100; max 500. The `since` value is the start of today in UTC — Claude substitutes the actual date.
+**Why:** `tickets.changed_since` slices the audit log from a given ISO timestamp. Returns each change as `{ ticket_id, field, old_value, new_value, changed_at }`, sorted newest-first. Default limit 100; max 500. The `since` value is the start of today in UTC; Claude substitutes the actual date.
 
 ---
 
@@ -222,7 +222,7 @@ tickets.add_many({
 })
 ```
 
-**Why:** `tickets.add_many` creates all tickets in one transaction — either all succeed or none do. Tickets that omit `id` get auto-assigned sequential ids. Tickets referenced as `parent_id` or relation endpoints within the same call must have explicit ids (auto-assigned ids aren't known at author time). Returns `{ created: ["T50", "T51", "T52"], count: 3 }`.
+**Why:** `tickets.add_many` creates all tickets in one transaction; either all succeed or none do. Tickets that omit `id` get auto-assigned sequential ids. Tickets referenced as `parent_id` or relation endpoints within the same call must have explicit ids (auto-assigned ids aren't known at author time). Returns `{ created: ["T50", "T51", "T52"], count: 3 }`.
 
 ---
 
@@ -234,7 +234,7 @@ tickets.add_many({
 tickets.get({ "id": "T12" })
 ```
 
-Returns the full ticket including description, tags, and all relations (outgoing and incoming). Recent audit history is opt-in — pass `include_audit: true` (CLI `--include_audit`) for the last 10 audit entries. For multiple tickets at once, use `ids: ["T12", "T13"]` (max 10); the `include_audit` flag applies per element.
+Returns the full ticket including description, tags, and all relations (outgoing and incoming). Recent audit history is opt-in: pass `include_audit: true` (CLI `--include_audit`) for the last 10 audit entries. For multiple tickets at once, use `ids: ["T12", "T13"]` (max 10); the `include_audit` flag applies per element.
 
 ### Link two tickets
 
@@ -242,7 +242,7 @@ Returns the full ticket including description, tags, and all relations (outgoing
 tickets.link({ "from": "T9", "to": "T7", "kind": "blocks" })
 ```
 
-Creates a directed relation. Known kinds: `blocks`, `follows_up`, `supersedes`, `relates_to`. The `from` ticket is the active party — "T9 blocks T7" means T7 cannot proceed until T9 is done.
+Creates a directed relation. Known kinds: `blocks`, `follows_up`, `supersedes`, `relates_to`. The `from` ticket is the active party: "T9 blocks T7" means T7 cannot proceed until T9 is done.
 
 ### Find related tickets
 
@@ -263,7 +263,7 @@ Tags are normalised (trimmed, lowercased). Adding an already-present tag is a no
 ### Append a note to a ticket
 
 ```json
-tickets.append_to_description({ "id": "T5", "text": "Investigated — root cause is in the FTS weight configuration." })
+tickets.append_to_description({ "id": "T5", "text": "Investigated. Root cause is in the FTS weight configuration." })
 ```
 
 Appends to the existing description using `\n\n` as the separator. Use this rather than `tickets.update` when you want to add context without replacing the whole description.
@@ -274,7 +274,7 @@ Appends to the existing description using `\n\n` as the separator. Use this rath
 tickets.validate({})
 ```
 
-Checks for orphan `parent_id` values, dangling relations, and `closed_at` inconsistencies. Returns `{ ok, issues }` — `ok` is `true` when no error-severity issues exist.
+Checks for orphan `parent_id` values, dangling relations, and `closed_at` inconsistencies. Returns `{ ok, issues }`; `ok` is `true` when no error-severity issues exist.
 
 ### Export a markdown snapshot
 
@@ -282,6 +282,6 @@ Checks for orphan `parent_id` values, dangling relations, and `closed_at` incons
 tickets.export({})
 ```
 
-Renders the project's tickets to a human-readable markdown file (default `<root>/.ai/TICKETS.md`; pass `path` to override) and returns `{ path, bytes, ticket_count, exported_at }` — not the body. The file opens with a loud generated-at banner: it is a point-in-time snapshot, the DB is the source of truth, and the file **will drift** until you re-run the export.
+Renders the project's tickets to a human-readable markdown file (default `<root>/.ai/TICKETS.md`; pass `path` to override) and returns `{ path, bytes, ticket_count, exported_at }`, not the body. The file opens with a loud generated-at banner: it is a point-in-time snapshot, the DB is the source of truth, and the file **will drift** until you re-run the export.
 
-> **Overwrites** the target file every time. The export reflects only what the DB holds (fields + each ticket's `description` verbatim) — it does not reconstruct hand-authored prose that was never stored. `~` is not expanded; relative `path` resolves against the project root.
+> **Overwrites** the target file every time. The export reflects only what the DB holds (fields + each ticket's `description` verbatim); it does not reconstruct hand-authored prose that was never stored. `~` is not expanded; relative `path` resolves against the project root.

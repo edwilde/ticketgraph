@@ -17,9 +17,9 @@ token-efficient ticket tracking for Claude, backed by SQLite + FTS5
 
 ## Problem
 
-Planning a large development means accumulating a lot of tickets — features, bugs, dependencies, epics. To stay on track, you (or your AI agent) keep asking small questions: what's next? what's blocked? what changed? what's left?
+Planning a large development means accumulating a lot of tickets: features, bugs, dependencies, epics. To stay on track, you (or your AI agent) keep asking small questions: what's next? what's blocked? what changed? what's left?
 
-The usual answer is one big markdown file (for example `.ai/TICKETS.md`) that gets read in full every time one of those questions comes up. A large one can run to 25,000 tokens — and an agent reads all of it just to answer "what's open?". That's a poor token economy for what is fundamentally a structured-data question, and it only gets worse as the backlog grows.
+The usual answer is one big markdown file (for example `.ai/TICKETS.md`) that gets read in full every time one of those questions comes up. A large one can run to 25,000 tokens, and an agent reads all of it just to answer "what's open?". That's a poor token economy for a structured-data question, and it gets worse as the backlog grows.
 
 ticketgraph makes every common ticket query cost hundreds of tokens, not tens of thousands. Every response from `list`, `search`, `stats`, `next`, and `changed_since` fits in under 2k tokens by default. Full descriptions are returned only when you ask for them explicitly (`get`). Your agent stays oriented across a big backlog without burning context on every lookup.
 
@@ -35,7 +35,7 @@ npm run build
 npm run setup
 ```
 
-Then run a command — the CLI is the default interface and exits immediately, with zero MCP overhead:
+Then run a command. The CLI is the default interface and exits immediately, with zero MCP overhead:
 
 ```sh
 ticketgraph list                       # open/in_progress/blocked (excludes deferred+done)
@@ -68,11 +68,11 @@ The bundled skills install via the Claude Code plugin marketplace:
 
 ## What it is
 
-A token-efficient ticket store over one global SQLite database at `~/.claude/tickets.db`. As of v0.4.0, the primary interface is the CLI — `ticketgraph <command>` — which works with zero MCP overhead. The MCP server is still available but is now **opt-in**.
+A token-efficient ticket store over one global SQLite database at `~/.claude/tickets.db`. As of v0.4.0, the primary interface is the CLI, `ticketgraph <command>`, which works with zero MCP overhead. The MCP server is still available but is now **opt-in**.
 
 Single-user. Single-machine. No web service, no telemetry, no external APIs.
 
-**Token economy:** every common query fits in under 2k tokens by default, and the CLI costs ~0 context until you actually run a command — there's no always-on schema tax the way an always-connected MCP server would charge against every session.
+**Token economy:** every common query fits in under 2k tokens by default, and the CLI costs ~0 context until you actually run a command. There's no always-on schema tax the way an always-connected MCP server would charge against every session.
 
 ---
 
@@ -141,7 +141,7 @@ The cheap path for agents is to point them at the CLI from your project's `CLAUD
 Token-cheap ticket queries via `ticketgraph <command>` (read: list, get, search, next, stats, changed_since, blockers_of, children_of, related, validate, ping). Prefer this over reading the ticket file directly. Use `--format json` to parse output.
 ```
 
-Bundled slash commands: `/ticketgraph:tickets-add|status|next|open|done` — see [docs/usage.md](docs/usage.md#slash-commands).
+Bundled slash commands: `/ticketgraph:tickets-add|status|next|open|done`. See [docs/usage.md](docs/usage.md#slash-commands).
 
 ---
 
@@ -149,9 +149,9 @@ Bundled slash commands: `/ticketgraph:tickets-add|status|next|open|done` — see
 
 ticketgraph automatically resolves the active project from your current workspace. When you call a command without an explicit `--project`, it matches your cwd (or, under MCP, the client's advertised workspace roots) against registered `root_path` values using longest-prefix matching.
 
-- **Omit `--project`** — auto-resolves from your open workspace.
-- **`--project <id>`** — override to a specific project.
-- **`--project all`** — cross-project reads (supported on `list`, `search`, `stats`).
+- **Omit `--project`**: auto-resolves from your open workspace.
+- **`--project <id>`**: override to a specific project.
+- **`--project all`**: cross-project reads (supported on `list`, `search`, `stats`).
 
 If no registered project matches, the command returns a structured error pointing you at `register_project`.
 
@@ -159,15 +159,15 @@ If no registered project matches, the command returns a structured error pointin
 
 ## MCP server (optional)
 
-ticketgraph also speaks MCP for direct tool calls, but it's **opt-in**. As of v0.4.0 the MCP server no longer auto-connects when the plugin loads — a fresh Claude Code session pays ~0 context until a query is made.
+ticketgraph also speaks MCP for direct tool calls, but it's **opt-in**. As of v0.4.0 the MCP server no longer auto-connects when the plugin loads, so a fresh Claude Code session pays ~0 context until a query is made.
 
-Start it with `ticketgraph mcp` (or `ticketgraph --mcp`, or no arguments). To enable it inside Claude Code, see [docs/install.md — Enabling the MCP server](docs/install.md#enabling-the-mcp-server-optional).
+Start it with `ticketgraph mcp` (or `ticketgraph --mcp`, or no arguments). To enable it inside Claude Code, see [Enabling the MCP server in docs/install.md](docs/install.md#enabling-the-mcp-server-optional).
 
 ---
 
 ## Migration
 
-If you have an existing `.ai/TICKETS.md`, ticketgraph can ingest it. The model: ticketgraph becomes the canonical store; TICKETS.md is migrated once and then deleted. For a read-only view, `export` can regenerate a `.ai/TICKETS.md` snapshot — but it carries a loud generated-at banner and the DB stays the source of truth (it is never re-ingested).
+If you have an existing `.ai/TICKETS.md`, ticketgraph can ingest it. The model: ticketgraph becomes the canonical store; TICKETS.md is migrated once and then deleted. For a read-only view, `export` can regenerate a `.ai/TICKETS.md` snapshot, but it carries a loud generated-at banner and the DB stays the source of truth (it is never re-ingested).
 
 Migration goes through a JSON intermediate: write a small parser that turns your `TICKETS.md` into that shape, then `import_json` ingests it (dry-run first, then live). The shape is intentionally simple.
 
@@ -189,4 +189,4 @@ Design decisions, schema, tool contracts, and project-resolution algorithm: [doc
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

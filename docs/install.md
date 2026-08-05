@@ -2,9 +2,9 @@
 
 ## Prerequisites
 
-- **Node.js ≥ 20** — `node --version` should print `v20.x.x` or higher.
-- **Claude CLI** — the `claude` command must be on your PATH. Install from [claude.ai/download](https://claude.ai/download) or via your package manager.
-- **Build toolchain for better-sqlite3** — the native SQLite addon compiles on install:
+- **Node.js >= 20**: `node --version` should print `v20.x.x` or higher.
+- **Claude CLI**: the `claude` command must be on your PATH. Install from [claude.ai/download](https://claude.ai/download) or via your package manager.
+- **Build toolchain for better-sqlite3**: the native SQLite addon compiles on install:
   - **macOS**: Xcode Command Line Tools (`xcode-select --install`). This is the most common <5-minute blocker on a fresh machine.
   - **Linux**: `gcc`, `make`, `python3` (usually present; install `build-essential` if not).
   - **Windows**: Visual Studio Build Tools with the "Desktop development with C++" workload.
@@ -36,7 +36,7 @@ These steps bring you from `git clone` to a working `tickets.ping` call.
    ```sh
    npm run setup
    # Runs: claude mcp add --transport stdio -s user ticketgraph -- node <abs>/dist/server.js
-   # If the claude CLI is not on PATH, it prints the manual command — run it yourself.
+   # If the claude CLI is not on PATH, it prints the manual command. Run it yourself.
    ```
 
 5. **Restart Claude Code** (or run `/reload-plugins` if already open) so the new server is picked up.
@@ -48,7 +48,7 @@ These steps bring you from `git clone` to a working `tickets.ping` call.
    ```
    Then in a Claude Code session:
    - Run `/mcp` to confirm `ticketgraph` is connected.
-   - Call `tickets.ping` — you should receive `{ ok: true, version, db_path, schema_version }`.
+   - Call `tickets.ping`. You should receive `{ ok: true, version, db_path, schema_version }`.
 
 ---
 
@@ -77,7 +77,7 @@ The repo doubles as its own plugin marketplace (`.claude-plugin/marketplace.json
 
 `/reload-plugins` (or a fresh session) then surfaces the skills, namespaced under the plugin (e.g. `/ticketgraph:<skill>`).
 
-> **Important:** this installs the **skills only** — the prompt-level wrappers around the CLI. They run `ticketgraph <command>`, so the `ticketgraph` **binary must already be on your PATH** (via the dev install above; `npm install -g @edwilde/ticketgraph` is planned but not yet published). The plugin clone does **not** build the native `better-sqlite3` addon, so a plugin install alone does not give you a working CLI.
+> **Important:** this installs the **skills only**, the prompt-level wrappers around the CLI. They run `ticketgraph <command>`, so the `ticketgraph` **binary must already be on your PATH** (via the dev install above; `npm install -g @edwilde/ticketgraph` is planned but not yet published). The plugin clone does **not** build the native `better-sqlite3` addon, so a plugin install alone does not give you a working CLI.
 
 ---
 
@@ -115,13 +115,13 @@ To enable it, restore `.mcp.json` in the plugin root with the following content:
 Then run `/reload-plugins` (or restart Claude Code). To start the MCP stdio server directly, the preferred form is the `mcp` command; `--mcp` and no-args are equivalent (and are what MCP clients launch over stdio):
 
 ```sh
-ticketgraph mcp             # preferred — start the MCP stdio server
+ticketgraph mcp             # preferred: start the MCP stdio server
 node dist/server.js mcp     # same, via the built artifact
 node dist/server.js --mcp   # equivalent (flag form)
 node dist/server.js         # equivalent (no-args also starts MCP)
 ```
 
-`mcp` is a launch mode, not a CLI command, so it ignores trailing flags — `ticketgraph mcp --help` starts the server rather than printing help.
+`mcp` is a launch mode, not a CLI command, so it ignores trailing flags: `ticketgraph mcp --help` starts the server rather than printing help.
 
 ---
 
@@ -134,10 +134,10 @@ claude mcp add --transport stdio -s user ticketgraph -- node /absolute/path/to/t
 ```
 
 Flags explained:
-- `--transport stdio` — use stdio transport (default, but explicit for clarity).
-- `-s user` — stores the registration in `~/.claude.json`, making it available in all projects.
-- `ticketgraph` — the server name used in `claude mcp list` and `/mcp`.
-- `-- node <path>` — the `--` separator is required; everything after it is the command to run.
+- `--transport stdio`: use stdio transport (default, but explicit for clarity).
+- `-s user`: stores the registration in `~/.claude.json`, making it available in all projects.
+- `ticketgraph`: the server name used in `claude mcp list` and `/mcp`.
+- `-- node <path>`: the `--` separator is required; everything after it is the command to run.
 
 To update the registered path after moving the repo:
 ```sh
@@ -177,8 +177,8 @@ claude mcp get ticketgraph
 ```
 
 Inside a Claude Code session:
-- `/mcp` — shows all connected servers; `ticketgraph` should appear as connected.
-- Call tool `tickets.ping` — returns `{ ok: true, version: "0.13.0", db_path: "...", schema_version: 1 }`.
+- `/mcp` shows all connected servers; `ticketgraph` should appear as connected.
+- Call tool `tickets.ping`. It returns `{ ok: true, version: "0.13.0", db_path: "...", schema_version: 1 }`.
 
 ---
 
