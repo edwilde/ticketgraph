@@ -110,9 +110,17 @@ export function insertBatch(
 
   const doImport = db.transaction(() => {
     // Force: delete colliding tickets first (cascades relations/tags).
+    // Detach children before each delete: the (project_id, parent_id) FK is
+    // ON DELETE SET NULL, and SQLite nulls every column of a composite child
+    // key, project_id included, which violates NOT NULL. Children that are
+    // themselves in the batch get their parent_id back in pass 2.
     if (force && collidingIds.length > 0) {
+      const detachChildren = db.prepare(
+        "UPDATE tickets SET parent_id = NULL WHERE project_id = ? AND parent_id = ?",
+      );
       const deleteStmt = db.prepare("DELETE FROM tickets WHERE project_id = ? AND id = ?");
       for (const id of collidingIds) {
+        detachChildren.run(projectId, id);
         deleteStmt.run(projectId, id);
       }
     }

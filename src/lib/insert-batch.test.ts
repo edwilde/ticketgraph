@@ -65,6 +65,30 @@ describe("insertBatch", () => {
     db.close();
   });
 
+  it("force re-import of a parent with children does not trip the composite FK SET NULL", () => {
+    // The (project_id, parent_id) FK is ON DELETE SET NULL. SQLite nulls EVERY
+    // column of a composite child key, project_id included, so deleting a
+    // parent whose children still point at it fails with
+    // "NOT NULL constraint failed: tickets.project_id". A forced re-import of
+    // an unchanged umbrella + tasks (the sync-from-markdown case) hit this.
+    const { db } = setup();
+    const batch = {
+      projectId: "demo",
+      tickets: [
+        { id: "plan", title: "Plan" },
+        { id: "plan-A1", title: "Task", parent_id: "plan" },
+      ],
+      relations: [{ from: "plan-A1", to: "plan", kind: "blocks" as const }],
+    };
+    insertBatch(db, batch);
+    const again = insertBatch(db, { ...batch, force: true });
+    expect(again.created).toEqual(["plan", "plan-A1"]);
+    const child = db
+      .prepare("SELECT project_id, parent_id FROM tickets WHERE id = 'plan-A1'")
+      .get() as { project_id: string; parent_id: string | null };
+    expect(child).toEqual({ project_id: "demo", parent_id: "plan" });
+  });
+
   it("duplicate with force overwrites cleanly", () => {
     const { db } = setup();
     db.prepare(
