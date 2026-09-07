@@ -233,10 +233,8 @@ describe("CLI spawn integration (dist/server.js)", () => {
   });
 
   // Acceptance 6: `add_many --json '<inline>'` → exit 0, creates 2.
-  // The --json hatch must be the SOLE input (no other flags/positionals), so the
-  // project goes INSIDE the JSON object — not as a separate --project flag. (The
-  // implemented exclusivity rule rejects `add_many --project X --json …` with
-  // exit 2; verified by src/cli/dispatch.test.ts.)
+  // The project may go INSIDE the JSON object or be given as a separate
+  // --project flag (see the --project variant below); the two channels merge.
   it("add_many --json <inline> → exit 0, creates 2 tickets", { timeout: 5000 }, async () => {
     seedProject();
     const r = await runCliSpawn([
@@ -252,6 +250,32 @@ describe("CLI spawn integration (dist/server.js)", () => {
     const parsed = JSON.parse(r.stdout) as { created: string[]; count: number };
     expect(parsed.count).toBe(2);
     expect(parsed.created).toHaveLength(2);
+  });
+
+  // Acceptance 6b: `add_many --project X --json '<inline>'` → exit 0, creates 2
+  // in project X. Before the fix this exited 2 with "add_many requires --json",
+  // and dropping --project silently created the tickets in whatever project the
+  // cwd resolved to.
+  it("add_many --project <id> --json <inline> → exit 0, creates 2 in that project", { timeout: 5000 }, async () => {
+    seedProject();
+    const r = await runCliSpawn([
+      "add_many",
+      "--format",
+      "json",
+      "--project",
+      "cli_spawn",
+      "--json",
+      '{"tickets":[{"title":"A"},{"title":"B"}]}',
+    ]);
+
+    expect(r.code).toBe(0);
+    expectNoErrorOnStderr(r.stderr);
+    const parsed = JSON.parse(r.stdout) as { created: string[]; count: number };
+    expect(parsed.count).toBe(2);
+
+    const listed = await runCliSpawn(["list", "--format", "json", "--project", "cli_spawn"]);
+    const rows = (JSON.parse(listed.stdout) as { rows: Array<{ id: string }> }).rows;
+    expect(rows.map((row) => row.id)).toEqual(expect.arrayContaining(parsed.created));
   });
 
   // Acceptance 7: `add_many --json -` reading the SAME JSON from stdin → exit 0.

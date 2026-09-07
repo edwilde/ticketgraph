@@ -20,35 +20,85 @@ async function readStream(stream: Readable): Promise<string> {
 }
 
 /**
- * Detect whether `tokens` begins with a `--json` hatch in either form and
- * return the value string, or `null` if the hatch is not present.
- *
- * Accepted forms (both are exclusive — no other tokens may be present):
- *   `--json <value>`     → tokens.length === 2
- *   `--json=<value>`     → tokens.length === 1
+ * The `--json` hatch pulled out of a token list, plus the tokens left over for
+ * ordinary flag parsing. `value` is null when no hatch is present.
  */
-function detectJsonHatch(tokens: string[]): string | null {
-  // Space form: `--json <value>` — first token is the bare flag.
-  if (tokens[0] === JSON_FLAG) {
-    return tokens[1] ?? null; // null → missing-value FlagParseError below
+interface JsonHatch {
+  value: string | null;
+  rest: string[];
+}
+
+/**
+ * Split `tokens` into the `--json` hatch value and the remaining tokens.
+ *
+ * The hatch is recognised at ANY position, in either form:
+ *   `--json <value>`     the value token is consumed too
+ *   `--json=<value>`     a single token
+ *
+ * Throws when the flag appears twice, or when the space form has no value (end
+ * of tokens, or the next token is itself a flag).
+ */
+function extractJsonHatch(tokens: string[]): JsonHatch {
+  let value: string | null = null;
+  const rest: string[] = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i]!;
+    const isSpaceForm = token === JSON_FLAG;
+    const isEqualsForm = token.startsWith(JSON_FLAG_PREFIX);
+    if (!isSpaceForm && !isEqualsForm) {
+      rest.push(token);
+      continue;
+    }
+    if (value !== null) {
+      throw new FlagParseError(`${JSON_FLAG} given more than once`);
+    }
+    if (isEqualsForm) {
+      value = token.slice(JSON_FLAG_PREFIX.length);
+      continue;
+    }
+    const next = tokens[i + 1];
+    if (next === undefined || next.startsWith("--")) {
+      throw new FlagParseError(`${JSON_FLAG} requires a value (JSON string or '-')`);
+    }
+    value = next;
+    i++;
   }
-  // Equals form: `--json=<value>` — single token, value after the `=`.
-  if (tokens[0]?.startsWith(JSON_FLAG_PREFIX)) {
-    return tokens[0].slice(JSON_FLAG_PREFIX.length);
+
+  return { value, rest };
+}
+
+/** Parse a `--json` payload into the args object it has to be. */
+function parseJsonPayload(text: string): Record<string, unknown> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (err) {
+    throw new FlagParseError(
+      `invalid JSON for ${JSON_FLAG}: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
-  return null;
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new FlagParseError(
+      `${JSON_FLAG} content must be a JSON object (the full args), not an array or scalar`,
+    );
+  }
+  return parsed as Record<string, unknown>;
 }
 
 /**
  * Turn CLI tokens into the raw args object that `tool.parseArgs` expects.
  *
- * Two modes:
- *  - `--json <string>` / `--json=<string>` / `--json -` / `--json=-` (stdin)
- *    — the content is used VERBATIM as the full args object and bypasses flag
- *    parsing. This is the ONLY way to drive structured-input commands like
- *    `add_many`. Both space and `=` forms are supported; `--json` must be the
- *    sole input (no other flags or positionals).
- *  - otherwise — schema-driven flag parsing plus single-positional binding.
+ * Two input channels, usable together:
+ *  - `--json <string>` / `--json=<string>` / `--json -` / `--json=-` (stdin):
+ *    the content is an args object, used verbatim. This is the ONLY way to
+ *    express structured input such as `add_many`'s arrays of objects.
+ *  - ordinary flags plus a single positional: schema-driven parsing.
+ *
+ * When both are present the two are merged, so `--project p --json '{"tickets":
+ * [...]}'` selects the project the same way every other command's `--project`
+ * does. A key supplied through BOTH channels is a usage error rather than a
+ * silent last-wins.
  */
 export async function resolveRawArgs(
   tool: AnyTool,
@@ -56,48 +106,30 @@ export async function resolveRawArgs(
   tokens: string[],
   deps: ResolveRawArgsDeps = {},
 ): Promise<Record<string, unknown>> {
-  const jsonValue = detectJsonHatch(tokens);
-  const isJsonHatch = jsonValue !== null || tokens[0] === JSON_FLAG;
-
-  if (isJsonHatch) {
-    if (jsonValue === null) {
-      // `--json` with no following value (space form only, tokens.length === 1).
-      throw new FlagParseError(`${JSON_FLAG} requires a value (JSON string or '-')`);
-    }
-    // Exclusivity: the hatch must be the only input.
-    const expectedLength = tokens[0] === JSON_FLAG ? 2 : 1;
-    if (tokens.length !== expectedLength) {
-      throw new FlagParseError(
-        `${JSON_FLAG} cannot be combined with other flags or positionals`,
-      );
-    }
-
-    const text = jsonValue === "-" ? await readStream(deps.stdin ?? process.stdin) : jsonValue;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch (err) {
-      throw new FlagParseError(
-        `invalid JSON for ${JSON_FLAG}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      throw new FlagParseError(
-        `${JSON_FLAG} content must be a JSON object (the full args), not an array or scalar`,
-      );
-    }
-    return parsed as Record<string, unknown>;
-  }
+  const { value: jsonValue, rest } = extractJsonHatch(tokens);
 
   // add_many is the only structured-input command: flags cannot express its
   // arrays-of-objects shape, so route the author to --json explicitly rather
   // than surfacing a confusing parseArgs error.
-  if (cliName === "add_many" && tokens.length > 0) {
-    throw new FlagParseError(
-      `add_many requires --json '{"tickets":[…]}' or --json -`,
-    );
+  if (jsonValue === null && cliName === "add_many" && tokens.length > 0) {
+    throw new FlagParseError(`add_many requires --json '{"tickets":[...]}' or --json -`);
   }
 
-  const { values, positionals } = parseFlags(tool.inputSchema, tokens);
-  return bindPositionals(cliName, positionals, values);
+  const { values, positionals } = parseFlags(tool.inputSchema, rest);
+  const flagArgs = bindPositionals(cliName, positionals, values);
+
+  if (jsonValue === null) return flagArgs;
+
+  const text = jsonValue === "-" ? await readStream(deps.stdin ?? process.stdin) : jsonValue;
+  const jsonArgs = parseJsonPayload(text);
+
+  for (const key of Object.keys(flagArgs)) {
+    if (key in jsonArgs) {
+      throw new FlagParseError(
+        `--${key} is also set inside ${JSON_FLAG}; give it once, not through both`,
+      );
+    }
+  }
+
+  return { ...jsonArgs, ...flagArgs };
 }

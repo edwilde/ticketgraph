@@ -164,7 +164,7 @@ export function buildCommandHelp(tool: AnyTool): string {
     lines.push("");
     lines.push("structured input:");
     lines.push(
-      `  ${structured.join(", ")} cannot be passed as flags; supply the full args object via --json '<obj>' or --json - (stdin).`,
+      `  ${structured.join(", ")} cannot be passed as flags; supply them in a JSON args object via --json '<obj>' or --json - (stdin). --json may be combined with the flags above.`,
     );
   }
 

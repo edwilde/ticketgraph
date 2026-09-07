@@ -123,7 +123,7 @@ The CLI command names map 1:1 to the underlying tools.
 | `import_json` | Import tickets from a JSON intermediate file. Supports `dry_run` and `force`. |
 | `export` | Write a drift-labelled markdown snapshot of the project's tickets (default `<root>/.ai/TICKETS.md`). **Overwrites** the target. |
 
-**Structured input:** `--json '<obj>'` passes the full args object directly (required for `add_many`); `--json -` reads from stdin.
+**Structured input:** `--json '<obj>'` passes the full args object directly (required for `add_many`); `--json -` reads from stdin. It can be combined with ordinary flags, so `add_many --project myproj --json '{"tickets":[...]}'` works; setting the same key through both channels is an error.
 
 **Project resolution:** `--project <id>` overrides; omit to resolve from cwd; `--project all` on read commands queries across all projects.
 

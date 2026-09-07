@@ -47,10 +47,13 @@ describe("resolveRawArgs — --json escape hatch", () => {
     expect(raw).toEqual({ tickets: [{ title: "z" }] });
   });
 
-  it("--json={…} --project x (equals form) is still a structural exclusivity error", async () => {
-    await expect(
-      resolveRawArgs(listTool, "list", ['--json={"status":"open"}', "--project", "x"]),
-    ).rejects.toThrow(FlagParseError);
+  it("--json={…} --project x (equals form) merges the flag into the object", async () => {
+    const raw = await resolveRawArgs(listTool, "list", [
+      '--json={"status":"open"}',
+      "--project",
+      "x",
+    ]);
+    expect(raw).toEqual({ status: "open", project: "x" });
   });
 
   it("invalid JSON in --json → FlagParseError", async () => {
@@ -59,16 +62,63 @@ describe("resolveRawArgs — --json escape hatch", () => {
     ).rejects.toThrow(FlagParseError);
   });
 
-  it("--json combined with another flag → FlagParseError", async () => {
-    await expect(
-      resolveRawArgs(listTool, "list", ["--json", "{}", "--project", "x"]),
-    ).rejects.toThrow(FlagParseError);
+  it("--json combined with another flag merges both channels", async () => {
+    const raw = await resolveRawArgs(listTool, "list", [
+      "--json",
+      '{"status":"open"}',
+      "--project",
+      "x",
+    ]);
+    expect(raw).toEqual({ status: "open", project: "x" });
   });
 
-  it("--json combined with a positional → FlagParseError", async () => {
+  it("--project before --json merges too (order does not matter)", async () => {
+    const raw = await resolveRawArgs(addManyTool, "add_many", [
+      "--project",
+      "p",
+      "--json",
+      '{"tickets":[{"title":"x"}]}',
+    ]);
+    expect(raw).toEqual({ project: "p", tickets: [{ title: "x" }] });
+  });
+
+  it("--project alongside --json - (stdin) merges", async () => {
+    const stdin = Readable.from(['{"tickets":[{"title":"y"}]}']);
+    const raw = await resolveRawArgs(
+      addManyTool,
+      "add_many",
+      ["--project", "p", "--json", "-"],
+      { stdin },
+    );
+    expect(raw).toEqual({ project: "p", tickets: [{ title: "y" }] });
+  });
+
+  it("a key given through BOTH channels → FlagParseError naming it", async () => {
     await expect(
-      resolveRawArgs(getTool, "get", ["--json", "{}", "T22"]),
-    ).rejects.toThrow(FlagParseError);
+      resolveRawArgs(addManyTool, "add_many", [
+        "--project",
+        "p",
+        "--json",
+        '{"project":"q","tickets":[{"title":"x"}]}',
+      ]),
+    ).rejects.toThrow(/--project is also set inside --json/);
+  });
+
+  it("--json twice → FlagParseError", async () => {
+    await expect(
+      resolveRawArgs(listTool, "list", ["--json", "{}", "--json", "{}"]),
+    ).rejects.toThrow(/--json given more than once/);
+  });
+
+  it("bare trailing --json → missing-value FlagParseError", async () => {
+    await expect(
+      resolveRawArgs(listTool, "list", ["--project", "p", "--json"]),
+    ).rejects.toThrow(/--json requires a value/);
+  });
+
+  it("--json combined with a positional binds the positional", async () => {
+    const raw = await resolveRawArgs(getTool, "get", ["--json", '{"project":"p"}', "T22"]);
+    expect(raw).toEqual({ project: "p", id: "T22" });
   });
 });
 

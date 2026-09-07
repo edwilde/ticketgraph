@@ -24,7 +24,7 @@ ticketgraph list --help                # per-command flags
 
 **Output formats:** `--format compact` (default, human-readable), `--format json` (machine-readable, use to parse), `--format table`.
 
-**Structured input:** `--json '<obj>'` passes the full args object directly (required for `add_many`); `--json -` reads JSON from stdin.
+**Structured input:** `--json '<obj>'` passes the full args object directly (required for `add_many`); `--json -` reads JSON from stdin. It can be combined with ordinary flags, so `add_many --project myproj --json '{"tickets":[...]}'` works; setting the same key through both channels is an error.
 
 **Project resolution:** `--project <id>` overrides; omit to resolve from cwd; `--project all` on read commands queries across all projects.
 
