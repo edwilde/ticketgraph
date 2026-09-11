@@ -28,11 +28,13 @@ ticketgraph makes every common ticket query cost hundreds of tokens, not tens of
 ## Quick start (CLI)
 
 ```sh
-git clone https://github.com/edwilde/ticketgraph.git
-cd ticketgraph
-npm install
-npm run build
-npm run setup
+npm install -g ticketgraph
+```
+
+That puts the `ticketgraph` binary on your PATH. Or run it without installing:
+
+```sh
+npx ticketgraph list
 ```
 
 Then run a command. The CLI is the default interface and exits immediately, with zero MCP overhead:
@@ -51,6 +53,16 @@ ticketgraph --help                     # all commands and global flags
 
 Pass `--format json` to any read command for machine-readable output (`--format compact` is the default, `--format table` also available).
 
+### Install from source
+
+```sh
+git clone https://github.com/edwilde/ticketgraph.git
+cd ticketgraph
+npm install
+npm run build
+npm run setup
+```
+
 For prerequisites, plugin mode, manual registration, and troubleshooting, see [docs/install.md](docs/install.md).
 
 ### Install the skills as a plugin
@@ -62,7 +74,7 @@ The bundled skills install via the Claude Code plugin marketplace:
 /plugin install ticketgraph@ticketgraph
 ```
 
-> **Note:** this installs the **skills** only. They drive the `ticketgraph` CLI, so you still need the binary on your PATH via the dev install above. (`npm install -g @edwilde/ticketgraph` is planned but not yet published.)
+> **Note:** this installs the **skills** only. They drive the `ticketgraph` CLI, so you still need the binary on your PATH via `npm install -g ticketgraph`.
 
 ---
 

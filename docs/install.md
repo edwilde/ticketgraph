@@ -54,15 +54,21 @@ These steps bring you from `git clone` to a working `tickets.ping` call.
 
 ## Global CLI install
 
-Once the package is published to npm (planned), you can install the `ticketgraph` binary globally:
+The published package puts the `ticketgraph` binary on your PATH:
 
 ```sh
-npm install -g @edwilde/ticketgraph
+npm install -g ticketgraph
 # or run without installing:
-npx @edwilde/ticketgraph list
+npx ticketgraph list
 ```
 
-Until then, use the dev install above and invoke via `node /absolute/path/to/ticketgraph/dist/server.js <command>`, or add `ticketgraph/dist/` to your PATH.
+This is the recommended install. It builds the native `better-sqlite3` addon for your platform, so the CLI works straight away.
+
+To use the opt-in MCP server from a global install, register the binary itself:
+
+```sh
+claude mcp add --transport stdio -s user ticketgraph -- ticketgraph
+```
 
 ---
 
@@ -77,7 +83,7 @@ The repo doubles as its own plugin marketplace (`.claude-plugin/marketplace.json
 
 `/reload-plugins` (or a fresh session) then surfaces the skills, namespaced under the plugin (e.g. `/ticketgraph:<skill>`).
 
-> **Important:** this installs the **skills only**, the prompt-level wrappers around the CLI. They run `ticketgraph <command>`, so the `ticketgraph` **binary must already be on your PATH** (via the dev install above; `npm install -g @edwilde/ticketgraph` is planned but not yet published). The plugin clone does **not** build the native `better-sqlite3` addon, so a plugin install alone does not give you a working CLI.
+> **Important:** this installs the **skills only**, the prompt-level wrappers around the CLI. They run `ticketgraph <command>`, so the `ticketgraph` **binary must already be on your PATH** (`npm install -g ticketgraph`). The plugin clone does **not** build the native `better-sqlite3` addon, so a plugin install alone does not give you a working CLI.
 
 ---
 
@@ -178,7 +184,7 @@ claude mcp get ticketgraph
 
 Inside a Claude Code session:
 - `/mcp` shows all connected servers; `ticketgraph` should appear as connected.
-- Call tool `tickets.ping`. It returns `{ ok: true, version: "0.14.0", db_path: "...", schema_version: 1 }`.
+- Call tool `tickets.ping`. It returns `{ ok: true, version: "0.15.0", db_path: "...", schema_version: 1 }`.
 
 ---
 
