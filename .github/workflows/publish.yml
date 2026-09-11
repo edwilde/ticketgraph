@@ -2,6 +2,7 @@ name: Publish
 on:
   release:
     types: [published]
+  workflow_dispatch:
 permissions:
   contents: read
   id-token: write
@@ -12,14 +13,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24.x'
+          node-version: '20.x'
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 
-      # Trusted publishing (OIDC) needs npm 11.5.1 or newer.
-      - run: npm install -g npm@latest
+      # Trusted publishing (OIDC) needs npm 11.5.1 or newer. npm 12 requires
+      # Node 22+, and better-sqlite3 has no prebuilt binary for Node 22 or 24.
+      - run: npm install -g npm@^11
 
       - name: Check the release tag matches package.json
+        if: github.event_name == 'release'
         run: |
           tag="${GITHUB_REF_NAME#v}"
           pkg="$(node -p "require('./package.json').version")"
@@ -31,4 +34,12 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
-      - run: npm publish
+
+      - name: Publish
+        if: github.event_name == 'release'
+        run: npm publish
+
+      # A manual run validates the whole pipeline without consuming a version.
+      - name: Publish (dry run)
+        if: github.event_name != 'release'
+        run: npm publish --dry-run
