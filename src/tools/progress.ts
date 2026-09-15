@@ -49,10 +49,14 @@ const POPULATION_SQL = "tickets.status IN ('open', 'in_progress', 'blocked', 'do
  * needs the tags table, joined only when grouping by tag so the headline
  * (ungrouped) query never double-counts a multi-tagged ticket.
  */
-const BY_CONFIG: Partial<Record<ByValue, { expr: string; join?: string }>> = {
+const BY_CONFIG: Record<ByValue, { expr: string; join?: string }> = {
   epic: { expr: "COALESCE(tickets.epic, '(none)')" },
   parent: { expr: "COALESCE(tickets.parent_id, '(none)')" },
   type: { expr: "tickets.type" },
+  tag: {
+    expr: "COALESCE(tags.tag, '(none)')",
+    join: "LEFT JOIN tags ON tags.project_id = tickets.project_id AND tags.ticket_id = tickets.id",
+  },
 };
 
 interface CountRow {
@@ -216,9 +220,6 @@ export function makeProgressTool(
 
       if (args.by !== undefined) {
         const config = BY_CONFIG[args.by];
-        if (!config) {
-          throw new McpError(ErrorCode.InvalidParams, `by '${args.by}' is not yet supported.`);
-        }
         const groupRows = countRows(db, whereSql, projectParam, {
           join: config.join,
           groupByExpr: config.expr,

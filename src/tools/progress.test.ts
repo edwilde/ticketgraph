@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { openDb } from "../db.js";
 import { makeProgressTool } from "./progress.js";
+import { buildCommandHelp } from "../cli/commands.js";
 
 const tmpDirs: string[] = [];
 
@@ -261,4 +262,61 @@ describe("tickets.progress", () => {
     expect(result.groups![0].tickets).toBe(2);
   });
 
+  it("by: 'tag' → tag counts a ticket once per tag, group totals can exceed project total", async () => {
+    const { db, tool } = setup();
+    insertTicket(db, "T1", { status: "open", effort: 1 });
+    insertTicket(db, "T2", { status: "done", effort: 1 });
+    db.prepare("INSERT INTO tags (project_id, ticket_id, tag) VALUES (?, ?, ?)").run(
+      "proj1",
+      "T1",
+      "a",
+    );
+    db.prepare("INSERT INTO tags (project_id, ticket_id, tag) VALUES (?, ?, ?)").run(
+      "proj1",
+      "T1",
+      "b",
+    );
+
+    const result = await tool.handle(tool.parseArgs({ project: "proj1", by: "tag" }));
+
+    const keys = result.groups!.map((g) => g.key).sort();
+    expect(keys).toEqual(["(none)", "a", "b"]);
+
+    const groupTicketSum = result.groups!.reduce((sum, g) => sum + g.tickets, 0);
+    expect(groupTicketSum).toBe(3);
+    expect(result.totals.tickets).toBe(2);
+    expect(groupTicketSum).toBeGreaterThan(result.totals.tickets);
+  });
+
+  it("progress --help mentions the by enum and the tag double-count", async () => {
+    const { tool } = setup();
+    const help = buildCommandHelp(tool);
+
+    expect(help).toContain("one of: epic|parent|type|tag");
+    expect(help).toContain("exceed");
+  });
+
+  it("byte budget: 20 tickets across 4 epics, by: 'epic', < 800 bytes", async () => {
+    const { db, tool } = setup();
+    const epics = ["alpha", "beta", "gamma", "delta"];
+    const fib = [1, 2, 3, 5, 8, 13];
+    for (let i = 1; i <= 20; i++) {
+      insertTicket(db, `T${i}`, {
+        epic: epics[i % epics.length],
+        status:
+          i % 4 === 0
+            ? "done"
+            : i % 4 === 1
+              ? "open"
+              : i % 4 === 2
+                ? "in_progress"
+                : "blocked",
+        effort: i % 3 === 0 ? null : fib[i % fib.length],
+      });
+    }
+
+    const result = await tool.handle(tool.parseArgs({ project: "proj1", by: "epic" }));
+    const bytes = Buffer.byteLength(JSON.stringify(result), "utf8");
+    expect(bytes).toBeLessThan(800);
+  });
 });
