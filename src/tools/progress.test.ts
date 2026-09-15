@@ -258,8 +258,8 @@ describe("tickets.progress", () => {
     const result = await tool.handle(tool.parseArgs({ project: "all", by: "epic" }));
 
     expect(result.groups).toHaveLength(1);
-    expect(result.groups![0].key).toBe("core");
-    expect(result.groups![0].tickets).toBe(2);
+    expect(result.groups![0]!.key).toBe("core");
+    expect(result.groups![0]!.tickets).toBe(2);
   });
 
   it("by: 'tag' → tag counts a ticket once per tag, group totals can exceed project total", async () => {

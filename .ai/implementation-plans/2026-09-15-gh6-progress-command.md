@@ -63,6 +63,7 @@ Note: until Task 3 lands, `ticketgraph progress` in compact format renders throu
 ---
 
 ## Task 2: `--by <epic|parent|type|tag>` groups
+<!-- REVIEW: completed; lint issue (denied, fixed same day) -->
 
 **Files:**
 - Modify: `src/tools/progress.ts`
@@ -96,9 +97,15 @@ Note: until Task 3 lands, `ticketgraph progress` in compact format renders throu
 - `progress --help` output (via `buildCommandHelp(tool)`) contains `one of: epic|parent|type|tag` and the word `exceed`
 - byte budget: 20 tickets across 4 epics, `by: "epic"`, `< 800 bytes`
 
+> **Review [2026-09-16]:**
+> **Status:** Lint issue (denied, needs fix)
+> **What's wrong:** `src/tools/progress.test.ts:261-262` index `result.groups![0]` without asserting the element; with `noUncheckedIndexedAccess` the repo no longer passes `tsc --noEmit` (2 errors). Tests and build are unaffected because CI runs build and test only.
+> **Decision:** Denied, fix the two assertions. Fixed immediately after the review; `tsc --noEmit` is clean.
+
 ---
 
 ## Task 3: Bar and group rendering in `format.ts`
+<!-- REVIEW: deviated (approved) -->
 
 **Files:**
 - Modify: `src/cli/format.ts` (new branch before `rowsOf` in `formatResult`, ~line 333; new helpers `progressBar`, `formatProgress`)
@@ -135,6 +142,12 @@ Note: until Task 3 lands, `ticketgraph progress` in compact format renders throu
 - `formatResult("progress", r, "json")` equals `JSON.stringify(r)` and contains no `#`
 - regression: `formatResult("stats", statsFixture, "compact")` unchanged; reuse the fixture in the existing `formatResult — stats (count-map)` describe block at `format.test.ts:142`, and assert the progress compact output differs from what the stats renderer would produce for the same object
 
+> **Review [2026-09-16]:**
+> **Status:** Deviated (approved)
+> **What changed:** the compact status line is emitted only when it has content, so an empty project renders two lines (headline, bar) instead of the three fixed lines specified above.
+> **Root cause:** an empty `by_status` with `unsized 0` produced a blank middle line; found by the final whole-branch review and fixed in `95bec25` with a covering test.
+> **Decision:** Approved, accepted as an improvement.
+
 ---
 
 ## Task 4: Registry, MCP surface, CLI end-to-end
@@ -155,6 +168,7 @@ Note: until Task 3 lands, `ticketgraph progress` in compact format renders throu
 ---
 
 ## Task 5: Docs, skill table, version, release
+<!-- REVIEW: completed; unplanned addition (approved); merge deviation (skipped) -->
 
 **Files:**
 - Modify: `README.md:50` (quick-start line), `README.md:103` (command table row), `README.md:153` (read-command list), `README.md:166` (`--project all` list)
@@ -174,6 +188,16 @@ Note: until Task 3 lands, `ticketgraph progress` in compact format renders throu
 
 **Verify:** `npm test` green on `main` after the merge (version drift-guard passes); `gh release view v0.16.0` succeeds.
 
+> **Review [2026-09-16]:**
+> **Status:** Unplanned addition (approved)
+> **What was added:** an "Adding a tool" checklist in the project `CLAUDE.md` (commit `9825314`) listing every file a new tool must touch.
+> **Root cause:** the plan had to enumerate those scattered update points by hand in its context section; recording them once makes the next tool cheaper.
+> **Decision:** Approved.
+>
+> **Status:** Deviated (skipped)
+> **What changed:** the merge into `main` fast-forwarded (main had not moved), so history is linear with no merge commit; the feature branch was deleted afterwards.
+> **Decision:** Skipped, inconsequential.
+
 ---
 
 ## Caveats & known risks
@@ -186,6 +210,34 @@ Note: until Task 3 lands, `ticketgraph progress` in compact format renders throu
 
 ---
 
-## Review record
+## Review Record
 
-(populated post-implementation by the `review-implementation` skill)
+**Reviewed:** 2026-09-16
+**Reviewer:** Claude (Opus subagent, fresh context)
+**Branch:** main (feature work merged and released as v0.16.0)
+**Commit:** 95bec2557d3826994da382790930d65a2b24fa6e
+
+### Verification Results
+- **Tests:** 604 passed, 0 failed (55 files); build clean
+- **Lint (tsc --noEmit):** 2 errors in `src/tools/progress.test.ts:261-262`
+
+### Triage Summary
+| # | Finding | Type | Decision |
+|---|---------|------|----------|
+| 1 | progress.test.ts fails `tsc --noEmit` (2 errors) | Issue | Denied, needs fix |
+| 2 | Empty project renders two lines, status line omitted | Deviation | Approved |
+| 3 | CLAUDE.md "Adding a tool" checklist | Unplanned | Approved |
+| 4 | Fast-forward merge, no merge commit | Deviation | Skipped |
+
+### Technical Context & Learnings
+- `formatResult`'s `isStats` detector claims any object with `totals` plus a `by_*` key, so a per-command `cliName` branch must precede it. `rowsOf` does not fire on the progress shape.
+- `by_status` omits zero counts by construction: a `GROUP BY status` over the four-status population cannot emit an absent status, so no omit logic is needed.
+- Per-group `pct` needs the same points-to-tickets fallback as the headline, and the sort must run on that JS-side value; a SQL `ORDER BY` on the raw division yields NULL for an all-unsized group.
+- The tag join must key on `(project_id, ticket_id)`; a `ticket_id`-only join bleeds tags across projects under `--project all`.
+- `package-lock.json` carries the version in two root fields and is not covered by the plugin-manifest drift guard.
+
+### Items Requiring Rework
+None. Finding 1 was fixed in the follow-up commit after the review (`tsc --noEmit` clean, 604 tests green).
+
+### Deferred/Skipped Items
+- Fast-forward merge left no merge commit; inconsequential.
