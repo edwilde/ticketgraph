@@ -6,6 +6,7 @@ import { makeAddTool } from "./tools/add.js";
 import { makeListTool } from "./tools/list.js";
 import { makeGetTool } from "./tools/get.js";
 import { makeStatsTool } from "./tools/stats.js";
+import { makeProgressTool } from "./tools/progress.js";
 import { makeUpdateTool } from "./tools/update.js";
 import { makeLinkTool } from "./tools/link.js";
 import { makeUnlinkTool } from "./tools/unlink.js";
@@ -41,6 +42,7 @@ export function makeToolRegistry(deps: RegistryDeps): Map<string, AnyTool> {
     makeListTool(db, getClientRoots) as unknown as AnyTool,
     makeGetTool(db, getClientRoots) as unknown as AnyTool,
     makeStatsTool(db, getClientRoots) as unknown as AnyTool,
+    makeProgressTool(db, getClientRoots) as unknown as AnyTool,
     makeUpdateTool(db, getClientRoots) as unknown as AnyTool,
     makeLinkTool(db, getClientRoots) as unknown as AnyTool,
     makeUnlinkTool(db, getClientRoots) as unknown as AnyTool,

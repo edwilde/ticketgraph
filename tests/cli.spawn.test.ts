@@ -365,4 +365,36 @@ describe("CLI spawn integration (dist/server.js)", () => {
     expect(r.stderr).not.toContain("    at ");
     expect(r.stderr).not.toContain(".js:");
   });
+
+  // Acceptance 11: `progress` end-to-end: register, add three tickets (one
+  // done with effort, one open with effort, one unsized), then the headline
+  // line and the --by validation error both round-trip through the real
+  // process boundary.
+  it("progress --project cli_spawn → exit 0 with the headline line; progress --by bogus → exit 2", { timeout: 5000 }, async () => {
+    seedProject();
+    await runCliSpawn([
+      "add", "--project", "cli_spawn", "--title", "Done with effort",
+      "--status", "done", "--effort", "5",
+    ]);
+    await runCliSpawn([
+      "add", "--project", "cli_spawn", "--title", "Open with effort", "--effort", "3",
+    ]);
+    await runCliSpawn(["add", "--project", "cli_spawn", "--title", "Unsized"]);
+
+    const r = await runCliSpawn(["progress", "--project", "cli_spawn"]);
+
+    expect(r.code).toBe(0);
+    expectNoErrorOnStderr(r.stderr);
+    const firstLine = r.stdout.split("\n")[0] ?? "";
+    expect(firstLine).toMatch(/^progress \d+\/\d+ pts \(\d+%\)/);
+
+    const bad = await runCliSpawn(["progress", "--project", "cli_spawn", "--by", "bogus"]);
+
+    expect(bad.code).toBe(2);
+    expect(bad.stdout).toBe("");
+    expect(bad.stderr).toContain("epic");
+    expect(bad.stderr).toContain("parent");
+    expect(bad.stderr).toContain("type");
+    expect(bad.stderr).toContain("tag");
+  });
 });

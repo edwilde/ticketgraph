@@ -96,6 +96,7 @@ describe("MCP tools end-to-end 7-step flow", () => {
     expect(toolNames).toContain("tickets.list");
     expect(toolNames).toContain("tickets.get");
     expect(toolNames).toContain("tickets.stats");
+    expect(toolNames).toContain("tickets.progress");
     expect(toolNames).toContain("tickets.update");
     expect(toolNames).toContain("tickets.link");
     expect(toolNames).toContain("tickets.unlink");
@@ -113,7 +114,7 @@ describe("MCP tools end-to-end 7-step flow", () => {
     expect(toolNames).toContain("tickets.import_json");
     expect(toolNames).toContain("tickets.add_many");
     expect(toolNames).toContain("tickets.export");
-    expect(toolNames).toHaveLength(23);
+    expect(toolNames).toHaveLength(24);
 
     // Step 2: register project.
     const reg = await callTool(child, "tickets.register_project", {
