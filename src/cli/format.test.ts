@@ -430,12 +430,8 @@ describe("formatResult — progress", () => {
   });
 
   it("table with groups: header starts group/done/total/pct/unsized, data row uses points not tickets", () => {
-    const withGroups = {
-      ...headlineResult,
-      groups: [
-        { key: "frontend", tickets: 10, done_tickets: 2, points: 39, done_points: 8, pct: 21, unsized: 1 },
-      ],
-    };
+    const group = { key: "frontend", tickets: 10, done_tickets: 2, points: 39, done_points: 8, pct: 21, unsized: 1 };
+    const withGroups = { ...headlineResult, groups: [group] };
     const out = formatResult("progress", withGroups, "table");
     const lines = out.split("\n");
     // Three headline lines precede the group table.
@@ -443,9 +439,12 @@ describe("formatResult — progress", () => {
     expect(headerLine).toBeDefined();
     expect(headerLine).toMatch(/^group\s+done\s+total\s+pct\s+unsized/);
     const dataLine = lines[lines.indexOf(headerLine!) + 1]!;
-    expect(dataLine).toContain("8"); // done_points
-    expect(dataLine).toContain("39"); // points
-    expect(dataLine).not.toContain("10"); // ticket count, not the points-based total
+    const cols = dataLine.trim().split(/\s{2,}/);
+    const [, done, total] = cols;
+    expect(done).toBe(String(group.done_points));
+    expect(total).toBe(String(group.points));
+    expect(done).not.toBe(String(group.tickets));
+    expect(total).not.toBe(String(group.tickets));
   });
 
   it("table with no groups equals compact output", () => {
@@ -480,6 +479,30 @@ describe("formatResult — progress", () => {
     const asProgress = formatResult("progress", statsFixture, "compact");
     expect(asProgress).not.toBe(out);
     expect(asProgress).toContain("progress");
+  });
+
+  it("compact with an empty project (no statuses, nothing unsized) omits the blank status line", () => {
+    const out = formatResult(
+      "progress",
+      {
+        project: "proj1",
+        totals: {
+          tickets: 0,
+          done_tickets: 0,
+          points: 0,
+          done_points: 0,
+          pct: 0,
+          unsized: 0,
+          basis: "tickets" as const,
+        },
+        by_status: {},
+      },
+      "compact",
+    );
+    const lines = out.split("\n");
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toBe("progress 0/0 pts (0% by tickets) | 0/0 tickets");
+    expect(lines[1]).toBe("[--------------------] 0%");
   });
 });
 

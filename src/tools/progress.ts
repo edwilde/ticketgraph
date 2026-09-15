@@ -190,8 +190,7 @@ export function makeProgressTool(
 
       const counts = countRow(db, whereSql, projectParam);
 
-      const points = counts.points;
-      const basis: "points" | "tickets" = points > 0 ? "points" : "tickets";
+      const basis: "points" | "tickets" = counts.points > 0 ? "points" : "tickets";
       const pct = computePct(counts.points, counts.done_points, counts.tickets, counts.done_tickets);
 
       const statusRows = db

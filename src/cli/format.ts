@@ -328,7 +328,7 @@ function progressHeadline(result: Record<string, unknown>): string[] {
   );
   const unsized = Number(totals["unsized"] ?? 0);
   if (unsized > 0) statusParts.push(`unsized ${unsized}`);
-  lines.push(statusParts.join("  "));
+  if (statusParts.length > 0) lines.push(statusParts.join("  "));
 
   lines.push(`${progressBar(pct)} ${pct}%`);
   return lines;
