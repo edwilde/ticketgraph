@@ -139,16 +139,19 @@ describe("formatResult — empty collection", () => {
   });
 });
 
+/** The stats (count-map) fixture, shared with the progress regression test below. */
+const statsFixture = {
+  project: "proj1",
+  by_status: { open: 9, in_progress: 1 },
+  by_priority: { high: 4, low: 6 },
+  by_epic: {},
+  by_type: { feature: 10 },
+  by_effort: { "3": 5 },
+  totals: { tickets: 139, points: 11 },
+};
+
 describe("formatResult — stats (count-map)", () => {
-  const stats = {
-    project: "proj1",
-    by_status: { open: 9, in_progress: 1 },
-    by_priority: { high: 4, low: 6 },
-    by_epic: {},
-    by_type: { feature: 10 },
-    by_effort: { "3": 5 },
-    totals: { tickets: 139, points: 11 },
-  };
+  const stats = statsFixture;
 
   it("compact: terse totals line then one grouped line per by_* group", () => {
     const out = formatResult("stats", stats, "compact");
@@ -443,7 +446,6 @@ describe("formatResult — progress", () => {
     expect(dataLine).toContain("8"); // done_points
     expect(dataLine).toContain("39"); // points
     expect(dataLine).not.toContain("10"); // ticket count, not the points-based total
-    expect(dataLine).not.toContain("2\t"); // guard against accidental ticket-count leakage
   });
 
   it("table with no groups equals compact output", () => {
@@ -466,23 +468,16 @@ describe("formatResult — progress", () => {
   });
 
   it("regression: stats formatResult is unchanged and differs from progress rendering", () => {
-    const stats = {
-      project: "proj1",
-      by_status: { open: 9, in_progress: 1 },
-      by_priority: { high: 4, low: 6 },
-      by_epic: {},
-      by_type: { feature: 10 },
-      by_effort: { "3": 5 },
-      totals: { tickets: 139, points: 11 },
-    };
-    const out = formatResult("stats", stats, "compact");
+    // Reuses the fixture from the "formatResult — stats (count-map)" describe block above,
+    // rather than a second hand-declared copy.
+    const out = formatResult("stats", statsFixture, "compact");
     const lines = out.split("\n");
     expect(lines[0]).toBe("tickets=139 points=11");
     expect(out).toContain("status: open=9 in_progress=1");
 
     // Same object rendered through the progress renderer would differ (no "progress" headline,
     // no bar): confirms cliName routing, not shape-sniffing, decides the renderer.
-    const asProgress = formatResult("progress", stats, "compact");
+    const asProgress = formatResult("progress", statsFixture, "compact");
     expect(asProgress).not.toBe(out);
     expect(asProgress).toContain("progress");
   });

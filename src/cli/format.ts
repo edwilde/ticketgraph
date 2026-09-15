@@ -340,8 +340,11 @@ function compactProgress(result: Record<string, unknown>): string {
   const groups = result["groups"];
   if (Array.isArray(groups) && groups.length > 0) {
     const rows = groups.filter(isObject);
-    const keyWidth = Math.max(...rows.map((g) => cell(g["key"]).length));
+    // Floor with 0: an all-non-object `groups` array leaves `rows` empty, and
+    // Math.max() over an empty spread is -Infinity.
+    const keyWidth = Math.max(0, ...rows.map((g) => cell(g["key"]).length));
     const fracWidth = Math.max(
+      0,
       ...rows.map((g) => `${cell(g["done_points"])}/${cell(g["points"])}`.length),
     );
     lines.push("");
