@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatResult, rowsOf, type Format } from "./format.js";
+import { formatResult, rowsOf, progressBar, type Format } from "./format.js";
 
 /** A representative ticket row (all ticket columns present). */
 function ticketRow(over: Record<string, unknown> = {}): Record<string, unknown> {
@@ -311,6 +311,180 @@ describe("formatResult — add_many (arrays)", () => {
     );
     expect(out).toContain("created=[X1,X2]");
     expect(out).toContain("count=2");
+  });
+});
+
+describe("progressBar", () => {
+  it("38% -> 8 filled cells (round-to-nearest)", () => {
+    expect(progressBar(38)).toBe("[########------------]");
+  });
+
+  it("0% -> all empty", () => {
+    expect(progressBar(0)).toBe("[--------------------]");
+  });
+
+  it("100% -> all filled", () => {
+    expect(progressBar(100)).toBe("[####################]");
+  });
+
+  it("matches the issue's worked examples", () => {
+    expect(progressBar(21)).toBe("[####----------------]");
+    expect(progressBar(30)).toBe("[######--------------]");
+    expect(progressBar(67)).toBe("[#############-------]");
+  });
+});
+
+describe("formatResult — progress", () => {
+  /** The GitHub issue's headline example (no groups). */
+  const headlineResult = {
+    project: "proj1",
+    totals: {
+      tickets: 31,
+      done_tickets: 12,
+      points: 89,
+      done_points: 34,
+      pct: 38,
+      unsized: 3,
+      basis: "points" as const,
+    },
+    by_status: { open: 15, in_progress: 2, blocked: 2, done: 12 },
+  };
+
+  it("compact reproduces the issue's three headline lines verbatim", () => {
+    const out = formatResult("progress", headlineResult, "compact");
+    expect(out).toBe(
+      [
+        "progress 34/89 pts (38%) | 12/31 tickets",
+        "open 15  in_progress 2  blocked 2  done 12  unsized 3",
+        "[########------------] 38%",
+      ].join("\n"),
+    );
+  });
+
+  it("compact omits absent statuses and unsized when 0", () => {
+    const out = formatResult(
+      "progress",
+      {
+        project: "proj1",
+        totals: {
+          tickets: 5,
+          done_tickets: 5,
+          points: 10,
+          done_points: 10,
+          pct: 100,
+          unsized: 0,
+          basis: "points" as const,
+        },
+        by_status: { done: 5 },
+      },
+      "compact",
+    );
+    const statusLine = out.split("\n")[1];
+    expect(statusLine).toBe("done 5");
+    expect(out).not.toContain("unsized");
+    expect(out).not.toContain("open 0");
+    expect(out).not.toContain("blocked 0");
+  });
+
+  it("compact falls back to a tickets-based headline when basis is tickets", () => {
+    const out = formatResult(
+      "progress",
+      {
+        project: "proj1",
+        totals: {
+          tickets: 4,
+          done_tickets: 1,
+          points: 0,
+          done_points: 0,
+          pct: 25,
+          unsized: 4,
+          basis: "tickets" as const,
+        },
+        by_status: { open: 3, done: 1 },
+      },
+      "compact",
+    );
+    expect(out.split("\n")[0]).toBe("progress 0/0 pts (25% by tickets) | 1/4 tickets");
+  });
+
+  it("compact with groups: tool order, widest-key padding, rows end with pct%", () => {
+    const withGroups = {
+      ...headlineResult,
+      groups: [
+        { key: "frontend", tickets: 10, done_tickets: 2, points: 39, done_points: 8, pct: 21, unsized: 1 },
+        { key: "infra", tickets: 6, done_tickets: 2, points: 20, done_points: 6, pct: 30, unsized: 0 },
+        { key: "core", tickets: 8, done_tickets: 6, points: 30, done_points: 20, pct: 67, unsized: 2 },
+      ],
+    };
+    const out = formatResult("progress", withGroups, "compact");
+    const lines = out.split("\n");
+    // 3 headline lines + blank + 3 group rows
+    expect(lines).toHaveLength(7);
+    expect(lines[3]).toBe("");
+    expect(lines[4]).toBe("frontend   8/39  [####----------------] 21%");
+    expect(lines[5]).toBe("infra      6/20  [######--------------] 30%");
+    expect(lines[6]).toBe("core      20/30  [#############-------] 67%");
+  });
+
+  it("table with groups: header starts group/done/total/pct/unsized, data row uses points not tickets", () => {
+    const withGroups = {
+      ...headlineResult,
+      groups: [
+        { key: "frontend", tickets: 10, done_tickets: 2, points: 39, done_points: 8, pct: 21, unsized: 1 },
+      ],
+    };
+    const out = formatResult("progress", withGroups, "table");
+    const lines = out.split("\n");
+    // Three headline lines precede the group table.
+    const headerLine = lines.find((l) => l.startsWith("group"));
+    expect(headerLine).toBeDefined();
+    expect(headerLine).toMatch(/^group\s+done\s+total\s+pct\s+unsized/);
+    const dataLine = lines[lines.indexOf(headerLine!) + 1]!;
+    expect(dataLine).toContain("8"); // done_points
+    expect(dataLine).toContain("39"); // points
+    expect(dataLine).not.toContain("10"); // ticket count, not the points-based total
+    expect(dataLine).not.toContain("2\t"); // guard against accidental ticket-count leakage
+  });
+
+  it("table with no groups equals compact output", () => {
+    const compact = formatResult("progress", headlineResult, "compact");
+    const table = formatResult("progress", headlineResult, "table");
+    expect(table).toBe(compact);
+  });
+
+  it("json is untouched: equals JSON.stringify and contains no bar characters", () => {
+    const withGroups = {
+      ...headlineResult,
+      groups: [
+        { key: "frontend", tickets: 10, done_tickets: 2, points: 39, done_points: 8, pct: 21, unsized: 1 },
+      ],
+    };
+    const out = formatResult("progress", withGroups, "json");
+    expect(out).toBe(JSON.stringify(withGroups));
+    expect(out).not.toContain("#");
+    expect(out).not.toContain("[#");
+  });
+
+  it("regression: stats formatResult is unchanged and differs from progress rendering", () => {
+    const stats = {
+      project: "proj1",
+      by_status: { open: 9, in_progress: 1 },
+      by_priority: { high: 4, low: 6 },
+      by_epic: {},
+      by_type: { feature: 10 },
+      by_effort: { "3": 5 },
+      totals: { tickets: 139, points: 11 },
+    };
+    const out = formatResult("stats", stats, "compact");
+    const lines = out.split("\n");
+    expect(lines[0]).toBe("tickets=139 points=11");
+    expect(out).toContain("status: open=9 in_progress=1");
+
+    // Same object rendered through the progress renderer would differ (no "progress" headline,
+    // no bar): confirms cliName routing, not shape-sniffing, decides the renderer.
+    const asProgress = formatResult("progress", stats, "compact");
+    expect(asProgress).not.toBe(out);
+    expect(asProgress).toContain("progress");
   });
 });
 

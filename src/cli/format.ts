@@ -283,6 +283,97 @@ function formatGetDetail(result: unknown, _fmt: Format): string {
   return isObject(ticket) ? ticketDetail(ticket) : NOT_FOUND;
 }
 
+/** Fixed display order for `by_status` keys in the progress headline. */
+const PROGRESS_STATUS_ORDER = ["open", "in_progress", "blocked", "done"] as const;
+
+/**
+ * A 20-cell text progress bar: `#` filled, `-` empty, wrapped in `[` `]`.
+ * Filled count rounds to nearest cell (round-to-nearest, not floor/ceil), so
+ * e.g. 38% -> 8 filled, matching the issue's worked examples.
+ */
+export function progressBar(pct: number): string {
+  const filled = Math.max(0, Math.min(20, Math.round(pct / 5)));
+  return `[${"#".repeat(filled)}${"-".repeat(20 - filled)}]`;
+}
+
+/** One progress group row (compact): key padded, points fraction right-aligned, bar, pct. */
+function progressGroupRow(
+  group: Record<string, unknown>,
+  keyWidth: number,
+  fracWidth: number,
+): string {
+  const key = cell(group["key"]);
+  const fraction = `${cell(group["done_points"])}/${cell(group["points"])}`;
+  const pct = Number(group["pct"]);
+  return `${key.padEnd(keyWidth)}  ${fraction.padStart(fracWidth)}  ${progressBar(pct)} ${pct}%`;
+}
+
+/** compact: the three headline lines (fixed status order, blank-when-zero unsized). */
+function progressHeadline(result: Record<string, unknown>): string[] {
+  const totals = result["totals"] as Record<string, unknown>;
+  const byStatus = (result["by_status"] as Record<string, unknown>) ?? {};
+  const pct = Number(totals["pct"]);
+  const basis = totals["basis"];
+  const pctLabel = basis === "tickets" ? `${pct}% by tickets` : `${pct}%`;
+
+  const lines: string[] = [];
+  lines.push(
+    `progress ${cell(totals["done_points"])}/${cell(totals["points"])} pts (${pctLabel}) | ${cell(
+      totals["done_tickets"],
+    )}/${cell(totals["tickets"])} tickets`,
+  );
+
+  const statusParts = PROGRESS_STATUS_ORDER.filter((k) => k in byStatus).map(
+    (k) => `${k} ${cell(byStatus[k])}`,
+  );
+  const unsized = Number(totals["unsized"] ?? 0);
+  if (unsized > 0) statusParts.push(`unsized ${unsized}`);
+  lines.push(statusParts.join("  "));
+
+  lines.push(`${progressBar(pct)} ${pct}%`);
+  return lines;
+}
+
+/** compact: headline + (blank line + one row per group, in tool order) when groups present. */
+function compactProgress(result: Record<string, unknown>): string {
+  const lines = progressHeadline(result);
+  const groups = result["groups"];
+  if (Array.isArray(groups) && groups.length > 0) {
+    const rows = groups.filter(isObject);
+    const keyWidth = Math.max(...rows.map((g) => cell(g["key"]).length));
+    const fracWidth = Math.max(
+      ...rows.map((g) => `${cell(g["done_points"])}/${cell(g["points"])}`.length),
+    );
+    lines.push("");
+    for (const g of rows) lines.push(progressGroupRow(g, keyWidth, fracWidth));
+  }
+  return lines.join("\n");
+}
+
+/** table: headline + a `group done total pct unsized` table (points-based, no bar) when groups present. */
+function tableProgress(result: Record<string, unknown>): string {
+  const lines = progressHeadline(result);
+  const groups = result["groups"];
+  if (Array.isArray(groups) && groups.length > 0) {
+    const rows = groups.filter(isObject).map((g) => ({
+      group: cell(g["key"]),
+      done: cell(g["done_points"]),
+      total: cell(g["points"]),
+      pct: `${cell(g["pct"])}%`,
+      unsized: cell(g["unsized"]),
+    }));
+    lines.push("");
+    lines.push(tableRows(rows, ["group", "done", "total", "pct", "unsized"]));
+  }
+  return lines.join("\n");
+}
+
+/** Route to the compact or table progress renderer. compact === table when there are no groups. */
+function formatProgress(result: unknown, fmt: Format): string {
+  if (!isObject(result)) return cell(result);
+  return fmt === "table" ? tableProgress(result) : compactProgress(result);
+}
+
 /** table: a non-row object as aligned `key   value` pairs. */
 function tableObject(result: Record<string, unknown>): string {
   const pairs = Object.entries(result).map(([k, v]) => [
@@ -305,6 +396,10 @@ export function formatResult(cliName: string, result: unknown, fmt: Format): str
   // get renders a full detail block, not the truncated 6-col list row. This
   // MUST precede rowsOf, which already wraps `{ticket}`/`{tickets}` as rows.
   if (cliName === "get") return formatGetDetail(result, fmt);
+
+  // progress has its own headline+bar layout, keyed off cliName (not shape) so it
+  // never collides with isStats, which the totals/by_status shape would otherwise match.
+  if (cliName === "progress") return formatProgress(result, fmt);
 
   const rows = rowsOf(result);
   if (rows !== null) {
