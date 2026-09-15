@@ -154,4 +154,111 @@ describe("tickets.progress", () => {
     const bytes = Buffer.byteLength(JSON.stringify(result), "utf8");
     expect(bytes).toBeLessThan(400);
   });
+
+  it("by: 'bogus' → McpError naming the four allowed values", async () => {
+    const { tool } = setup();
+    expect(() => tool.parseArgs({ project: "proj1", by: "bogus" })).toThrow(
+      /epic.*parent.*type.*tag/s,
+    );
+  });
+
+  it("by: 'epic' → groups sorted by pct with '(none)' present", async () => {
+    const { db, tool } = setup();
+    insertTicket(db, "T1", { epic: "core", status: "done", effort: 1 });
+    insertTicket(db, "T2", { epic: "infra", status: "open", effort: 1 });
+    insertTicket(db, "T3", { epic: "infra", status: "open", effort: 1 });
+    insertTicket(db, "T4", { epic: null, status: "open", effort: 1 });
+
+    const result = await tool.handle(tool.parseArgs({ project: "proj1", by: "epic" }));
+
+    expect(result.groups).toBeDefined();
+    const keys = result.groups!.map((g) => g.key);
+    expect(keys).toContain("(none)");
+    expect(keys).toContain("core");
+    expect(keys).toContain("infra");
+    expect(keys).toHaveLength(3);
+
+    const pcts = result.groups!.map((g) => g.pct);
+    expect(pcts).toEqual([...pcts].sort((a, b) => a - b));
+
+    const core = result.groups!.find((g) => g.key === "core")!;
+    expect(core.tickets).toBe(1);
+    expect(core.done_tickets).toBe(1);
+    expect(core.pct).toBe(100);
+
+    const infra = result.groups!.find((g) => g.key === "infra")!;
+    expect(infra.tickets).toBe(2);
+    expect(infra.done_tickets).toBe(0);
+    expect(infra.pct).toBe(0);
+  });
+
+  it("no 'by' → groups absent", async () => {
+    const { db, tool } = setup();
+    insertTicket(db, "T1", { epic: "core", status: "done", effort: 1 });
+
+    const result = await tool.handle(tool.parseArgs({ project: "proj1" }));
+
+    expect(result.groups).toBeUndefined();
+  });
+
+  it("by: 'parent' → parent_id used, '(none)' for roots", async () => {
+    const { db, tool } = setup();
+    insertTicket(db, "P1", { status: "open", effort: 1 });
+    db.prepare(
+      "INSERT INTO tickets (id, project_id, title, description, status, priority, type, epic, parent_id, effort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run("C1", "proj1", "Child", "", "done", null, "task", null, "P1", 1, "2026-01-01T00:00:00.000Z");
+
+    const result = await tool.handle(tool.parseArgs({ project: "proj1", by: "parent" }));
+
+    const keys = result.groups!.map((g) => g.key).sort();
+    expect(keys).toEqual(["(none)", "P1"]);
+  });
+
+  it("by: 'type' → no '(none)' row (type is NOT NULL)", async () => {
+    const { db, tool } = setup();
+    insertTicket(db, "T1", { type: "bug", status: "open", effort: 1 });
+    insertTicket(db, "T2", { type: "task", status: "done", effort: 1 });
+
+    const result = await tool.handle(tool.parseArgs({ project: "proj1", by: "type" }));
+
+    const keys = result.groups!.map((g) => g.key);
+    expect(keys).not.toContain("(none)");
+    expect(keys.sort()).toEqual(["bug", "task"]);
+  });
+
+  it("all-unsized group sorts by its ticket-based pct: a (0%), c (33%), b (50%)", async () => {
+    const { db, tool } = setup();
+    // epic a: 2 open, 0 points -> 0%
+    insertTicket(db, "A1", { epic: "a", status: "open", effort: null });
+    insertTicket(db, "A2", { epic: "a", status: "open", effort: null });
+    // epic b: 1 done of 2 tickets, 0 points -> 50%
+    insertTicket(db, "B1", { epic: "b", status: "done", effort: null });
+    insertTicket(db, "B2", { epic: "b", status: "open", effort: null });
+    // epic c: 1 done of 3 points -> 33%
+    insertTicket(db, "C1", { epic: "c", status: "done", effort: 1 });
+    insertTicket(db, "C2", { epic: "c", status: "open", effort: 2 });
+
+    const result = await tool.handle(tool.parseArgs({ project: "proj1", by: "epic" }));
+
+    expect(result.groups!.map((g) => g.key)).toEqual(["a", "c", "b"]);
+    expect(result.groups!.map((g) => g.pct)).toEqual([0, 33, 50]);
+  });
+
+  it("project: 'all' with by: 'epic' merges a shared epic across projects", async () => {
+    const { db, tool } = setup();
+    const dir2 = makeTmpDir();
+    db.prepare(
+      "INSERT INTO projects (id, display_name, root_path, created_at) VALUES (?, ?, ?, ?)",
+    ).run("proj2", "Project Two", dir2, "2026-01-01T00:00:00.000Z");
+
+    insertTicket(db, "T1", { projectId: "proj1", epic: "core", status: "open", effort: 1 });
+    insertTicket(db, "T1", { projectId: "proj2", epic: "core", status: "done", effort: 1 });
+
+    const result = await tool.handle(tool.parseArgs({ project: "all", by: "epic" }));
+
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups![0].key).toBe("core");
+    expect(result.groups![0].tickets).toBe(2);
+  });
+
 });
