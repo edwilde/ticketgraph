@@ -2,9 +2,17 @@ This project's own development tickets are tracked in `.ai/TICKETS.md` (hand-mai
 
 ## Git workflow
 
-Always commit completed, verified units of work — don't leave changes uncommitted waiting to be asked. Commit after each self-contained piece (a ticket, a fix, a doc update) once `npm run build` + `npm test` are green; keep commits atomic with a descriptive subject. Push when appropriate (after a ticket lands or a logical batch is committed and tests pass). Single-user project: commit directly to `main` (no PR/branch needed unless the work is genuinely exploratory).
+Every piece of development starts on a new branch cut from an up-to-date `main`. Never commit to `main` directly.
 
-Bump the version when a change is user-visible — minor (`0.x.0`) for behaviour/feature changes, patch (`0.0.x`) for fixes. Keep `package.json` and `.claude-plugin/plugin.json` in sync (a drift-guard test enforces this; `src/version.ts` reads `package.json` at runtime). Update the `tickets.ping` example version in `docs/install.md`. Every version bump MUST end in a published GitHub release, not just a tag: create an annotated tag (`vX.Y.Z`), push it, then `gh release create vX.Y.Z --title "vX.Y.Z — <summary>" --notes "<what changed>"`. A pushed tag with no GitHub release is incomplete — the repo's "latest release" must track the code version.
+Commit completed, verified units of work on that branch as you go: one commit per self-contained piece (a ticket task, a fix, a doc update) once `npm run build` and `npm test` are green, with a present-tense subject describing the end state.
+
+When the work is complete and reviewed, open a **draft** pull request against `main`. The PR description is concise: what changed, how it was verified, anything still needing a decision. Run `/ai-slop-cleaner` over the description before posting it. Do not mark the PR ready and do not merge it; Ed merges via GitHub.
+
+## Releases
+
+A release happens only after Ed has merged the PR on GitHub, and only when Ed asks for it. Once the merge has landed, prompt Ed with the proposed version and a one-line summary and wait for a yes. Never tag or release from a feature branch, from an unmerged state, or before the review-implementation stage of the pipeline has finished.
+
+The release itself, once approved: bump the version on `main` when the change is user-visible, minor (`0.x.0`) for behaviour or feature changes and patch (`0.0.x`) for fixes. Keep `package.json`, `package-lock.json` and `.claude-plugin/plugin.json` in sync (a drift-guard test covers the manifest; `src/version.ts` reads `package.json` at runtime). Update the `tickets.ping` example version in `docs/install.md`. Create an annotated tag `vX.Y.Z`, push it, then `gh release create vX.Y.Z --title "vX.Y.Z: <summary>" --notes "<what changed>"`. The GitHub release triggers the npm publish, so a pushed tag with no release is incomplete and the repo's latest release must always match the published package version.
 
 ## Adding a tool
 
