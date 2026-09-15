@@ -18,6 +18,7 @@ ticketgraph get T7 T8 T9               # fetch several tickets at once (bare pos
 ticketgraph search --q "auth"          # FTS5 search
 ticketgraph next                       # highest-priority unblocked ticket; empty → read message field
 ticketgraph stats                      # counts + point totals
+ticketgraph progress                   # points-based completion % with a 20-cell bar
 ticketgraph --help                     # all commands
 ticketgraph list --help                # per-command flags
 ```
@@ -44,7 +45,7 @@ node ${CLAUDE_PLUGIN_ROOT}/dist/server.js <command> [--flags]
 Add one line to your project's `CLAUDE.md` to enable token-cheap ticket queries in any Claude Code session:
 
 ```
-Token-cheap ticket queries via `ticketgraph <command>` (read: list, get, search, next, stats, changed_since, blockers_of, children_of, related, validate, ping; `ticketgraph --help` for all flags). Prefer this over reading `.ai/TICKETS.md`. Use `--format json` to parse output. MCP server is opt-in (see docs/install.md).
+Token-cheap ticket queries via `ticketgraph <command>` (read: list, get, search, next, stats, progress, changed_since, blockers_of, children_of, related, validate, ping; `ticketgraph --help` for all flags). Prefer this over reading `.ai/TICKETS.md`. Use `--format json` to parse output. MCP server is opt-in (see docs/install.md).
 ```
 
 ---
@@ -55,7 +56,7 @@ When you call a tool without an explicit `project` argument, ticketgraph resolve
 
 - Omit `project` to auto-scope from workspace.
 - `project: "<id>"` overrides to a specific project.
-- `project: "all"` runs cross-project reads (valid on `tickets.list`, `tickets.search`, `tickets.stats`).
+- `project: "all"` runs cross-project reads (valid on `tickets.list`, `tickets.search`, `tickets.stats`, `tickets.progress`).
 
 For the resolution algorithm detail, see §4 of the [design spec](specs/2026-05-28-ticketgraph-design.md).
 

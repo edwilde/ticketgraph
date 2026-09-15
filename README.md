@@ -48,6 +48,7 @@ ticketgraph search --q "auth"          # FTS5 full-text search
 ticketgraph get T7                     # full ticket detail (description, tags, relations)
 ticketgraph get T7 T8 T9               # fetch several tickets at once
 ticketgraph stats                      # counts + point totals
+ticketgraph progress                   # points-based completion % with a 20-cell bar
 ticketgraph --help                     # all commands and global flags
 ```
 
@@ -101,6 +102,7 @@ The CLI command names map 1:1 to the underlying tools.
 | `search` | Full-text search (FTS5 BM25) over titles and descriptions. Supports `--project all`. |
 | `next` | Return the highest-priority open ticket with no open blockers. |
 | `stats` | Counts grouped by status, priority, epic, type, and effort. Supports `--project all`. |
+| `progress` | Points-based completion with a 20-cell bar; `--by epic\|parent\|type\|tag` for per-group rows; deferred excluded. Supports `--project all`. |
 | `related` | All tickets related to a given ticket, both directions, grouped by kind. |
 | `blockers_of` | Tickets that block a given ticket, traversed recursively. |
 | `children_of` | Descendant tickets by walking `parent_id` links downward. |
@@ -150,7 +152,7 @@ For full CLI documentation and per-command flags, see [docs/usage.md](docs/usage
 The cheap path for agents is to point them at the CLI from your project's `CLAUDE.md`, so Claude reaches for `ticketgraph <command>` instead of reading the ticket file:
 
 ```md
-Token-cheap ticket queries via `ticketgraph <command>` (read: list, get, search, next, stats, changed_since, blockers_of, children_of, related, validate, ping). Prefer this over reading the ticket file directly. Use `--format json` to parse output.
+Token-cheap ticket queries via `ticketgraph <command>` (read: list, get, search, next, stats, progress, changed_since, blockers_of, children_of, related, validate, ping). Prefer this over reading the ticket file directly. Use `--format json` to parse output.
 ```
 
 Bundled slash commands: `/ticketgraph:tickets-add|status|next|open|done`. See [docs/usage.md](docs/usage.md#slash-commands).
@@ -163,7 +165,7 @@ ticketgraph automatically resolves the active project from your current workspac
 
 - **Omit `--project`**: auto-resolves from your open workspace.
 - **`--project <id>`**: override to a specific project.
-- **`--project all`**: cross-project reads (supported on `list`, `search`, `stats`).
+- **`--project all`**: cross-project reads (supported on `list`, `search`, `stats`, `progress`).
 
 If no registered project matches, the command returns a structured error pointing you at `register_project`.
 

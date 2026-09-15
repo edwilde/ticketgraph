@@ -30,6 +30,7 @@ If `ticketgraph` is not on PATH, it isn't set up here — fall back to whatever 
 | Several tickets | `ticketgraph get T1 T2 T3` or `ticketgraph get --ids T1 T2 T3` |
 | Full-text search (BM25, title weighted 3×) | `ticketgraph search --q "auth redirect"` |
 | Counts by status/priority/epic/type/effort | `ticketgraph stats` |
+| How far through the backlog am I / which area lags | `ticketgraph progress [--by epic]` |
 | What blocks a ticket (recursive) | `ticketgraph blockers_of T5` |
 | Descendants of a ticket | `ticketgraph children_of T5` |
 | Anything related (both directions) | `ticketgraph related T5` |

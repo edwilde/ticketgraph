@@ -11,6 +11,8 @@ Each ticket is self-contained. Build with `/writing-plans` → `/subagent-driven
 |---|---|---|
 | T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29 | _(none)_ | T30 |
 
+**GH#6 landed (2026-09-15, v0.16.0):** token-cheap `progress` command (points-based headline, 20-cell bar, `--by epic|parent|type|tag`).
+
 **T1–T18 complete (2026-05-29).** 410 tests across 42 files, deterministically green (verified 12/12 consecutive full-suite runs). 21 MCP tools, demo + sample parsers (both 100% heading parse on the live files), plugin manifest + install docs, README + usage + migration docs, and GitHub Actions CI (ubuntu + macOS).
 
 **T19, T20 (user-requested, 2026-05-29):** batch ticket creation (`tickets.add_many`) and a token-efficiency review of tool response shapes — both motivated by batch-add sessions where N single `tickets.add` calls each echo a full ticket row back.
